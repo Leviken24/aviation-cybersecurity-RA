@@ -1,6 +1,6 @@
-# Civil Aviation Cybersecurity Risk Assessment & Decision Support Dashboard
+# Civil Aviation Cybersecurity Live Risk Simulator & Attack Prediction Engine
 
-An interactive, aerospace-grade cybersecurity risk assessment dashboard and analytical engine implementing the methodology published in:
+An interactive, aerospace-grade cybersecurity risk assessment dashboard, live airspace simulator, and predictive AI anomaly forecasting engine implementing the methodology published in:
 
 > **"Studying Cybersecurity in Civil Aviation, Including Developing and Applying Aviation Cybersecurity Risk Assessment"**  
 > *Ahmed Abdelwahab Elmarady and Kamel Rahouma*  
@@ -8,9 +8,49 @@ An interactive, aerospace-grade cybersecurity risk assessment dashboard and anal
 
 ---
 
-## 🎯 Executive Summary of Research Findings
+## ✈️ Live Airspace Simulator & Attack Prediction Engine (`simulator.js`)
 
-The paper develops a continuous qualitative and quantitative methodology (compliant with ICAO Documents 8973, 9895, 9985, and 10084) to evaluate cyber-attack threats across legacy and next-generation Civil Aviation Critical Infrastructure:
+Unlike static risk matrices, this platform features a **real-time kinematic tactical airspace simulator** (TRACON 35 NM sector) that simulates live aircraft avionics, injects live cyber attacks, predicts threats before impact, and re-assesses risk in real time using the paper's **Algorithm 1**:
+
+### 1. Real-Time Airspace & Avionics Kinematics
+- **6 Active Commercial Flights** (`UAL421`, `DLH338`, `EGY701`, `BAW117`, `AFR502`, `SVA204`) with realistic flight phases (En-Route, Approach, Final Approach, Departure), speed, heading, and altitude profiles.
+- **12 RPM Rotating Primary/Secondary Radar Sweep** with range rings (5, 10, 20, 30 NM), approach cones, runway centerlines (09L/27R, 09R/27L), waypoints, and 4 Ground Multilateration (MLAT) sensor stations.
+- **Live Avionics Telemetry**: GNSS Carrier-to-Noise Ratio ($C/N_0$), SSR transponder reply rate (Hz), Time Difference of Arrival (TDoA) residuals ($\mu\text{s}$), VHF channel SNR, and CPDLC link states.
+
+### 2. Red Team Cyber-Attack Injection Deck
+Users can inject the 7 core cyber-attack vectors identified in the research paper onto any active flight:
+1. **🚨 ADS-B Ghost Target Injection**: Injects synthetic 1090 MHz Mode S squitters creating phantom aircraft on collision courses without Primary Radar (PSR) skin-paint returns.
+2. **🛰️ ADS-B Trajectory Spoofing**: Gradually offsets claimed coordinates from the true physical flight path.
+3. **📡 GNSS RF Jamming (L1 1575.42 MHz)**: Deploys expanding RF interference contours that plunge satellite $C/N_0$ below lock threshold ($32\text{ dB-Hz}$).
+4. **🗺️ GNSS Ephemeris Spoofing**: Injects synthetic satellite ephemeris, causing cross-track drift relative to on-board Inertial Reference Systems (IRS).
+5. **🎙️ Rogue VHF Voice ATC Clearance**: Injects unauthorized altitude or heading clearances (Intolerable Risk, $r = 15.0$).
+6. **📻 SSR Over-Interrogation**: Surges interrogation pulse rates to $1,650\text{ Hz}$ ($>1,200\text{ Hz}$ limit), triggering transponder thermal duty-cycle suppression.
+7. **🌐 SWIM Enterprise Bus MITM**: Injects unsigned route amendments over the net-centric IP bus.
+
+### 3. Blue Team Predictive AI Anomaly Forecaster
+The predictive engine runs 6 multi-sensor anomaly detection algorithms to forecast attacks and impact:
+- **TDoA Hyperbolic Residue Predictor**: Compares claimed ADS-B positions against theoretical arrival times at MLAT ground stations. Flags ghost targets ($P > 97\%$).
+- **Kinematic Plausibility Forecaster**: Evaluates acceleration steps, unphysical turn rates, and velocity discontinuities.
+- **Pre-Jamming $C/N_0$ Depletion Forecaster**: Detects GPS RF degradation 8–10 seconds before complete FMS satellite lock loss.
+- **GNSS-IRS Cross-Track Drift Detector**: Flags ephemeris spoofing when dead-reckoning IRS diverges by $>0.45\text{ NM}$.
+- **SSR Pulse Slope Forecaster**: Predicts transponder thermal shutdown 5 seconds before response cutoff.
+- **VHF Flight Intent Parser**: Flags clearances contradicting filed flight plans and minimum safe altitudes.
+
+### 4. Dynamic Real-Time Algorithm 1 Risk Re-Assessment
+As attacks develop, the engine dynamically recalculates:
+- $L_{\text{live}}$: Elevates based on observed attack signals.
+- $I_{\text{live}}$: Escalates based on flight phase and traffic density.
+- $r_{\text{live}} = L_{\text{live}} \times I_{\text{live}}$ with instant transition into **Intolerable ($r \ge 15$)**, **Tolerable ($5 \le r < 15$)**, or **Acceptable ($r < 5$)** on flight data blocks.
+
+### 5. Multi-Layer Cyber Resilience Countermeasures
+- **PSR-SSR Sensor Fusion**: Filters ghost ADS-B targets using primary radar skin echoes.
+- **Multi-Frequency L5 GNSS + AAIM**: Automatically rejects jammed L1 signals and engages inertial navigation.
+- **TDoA ML Localization**: Restores true aircraft coordinates using RF fingerprinting from OpenSky data.
+- **Automated VHF Frequency Hopping**: Transmits emergency switch orders to pre-allocated backup channels.
+
+---
+
+## 🎯 Executive Summary of Research Findings (IEEE Access 2021)
 
 | Aviation Domain | Highest Risk Asset | Lowest Risk Asset | Primary Vulnerability Drivers |
 |:---|:---|:---|:---|
@@ -21,64 +61,33 @@ The paper develops a continuous qualitative and quantitative methodology (compli
 
 ---
 
-## 📐 Algorithmic Formulation (Algorithm 1)
+## 📐 Mathematical Formulation (Algorithm 1)
 
-### 1. Likelihood Determination ($L \in [1, 5]$) — Table 2
-Likelihood is determined across 4 dimensions:
-1. **Tool Cost**: $<\$1\text{k}$ (5), $<\$5\text{k}$ (4), $<\$10\text{k}$ (3), $<\$100\text{k}$ (2), $>\$100\text{k}$ (1)
-2. **Tool Accessibility**: Easily accessible (5) $\to$ Highly restricted (1)
-3. **Historical Frequency**: Once every 2 weeks (5) $\to$ Once every $3+$ years (1)
-4. **Attacker Expertise**: Basic knowledge (5) $\to$ Complex specialized expertise (1)
+1. **Numeric Risk Level ($r$) — Equation (1):**
+   $$r = L \times I \quad (1 \le r \le 25)$$
 
-### 2. Impact Determination ($I \in [1, 5]$) — Table 3
-Worst-case scenario impact assessed across:
-- **Operational Flight Impact**: Insignificant (1) $\to$ Serious total service outage (5)
-- **Financial Recovery**: Business unit budget (1) $\to$ Governmental support required (5)
-- **Reputational Confidence**: Isolated complaints (1) $\to$ Organization cannot continue (5)
+2. **Qualitative Tolerability Index ($R$) — Equation (2):**
+   $$R = \begin{cases} 
+   \text{intolerable (Red)}, & r \ge 15 \\ 
+   \text{tolerable (Orange)}, & 5 \le r < 15 \\ 
+   \text{acceptable (Light Green)}, & r < 5 
+   \end{cases}$$
 
-### 3. Numeric Risk Level ($r$) — Equation (1)
-$$r = L \times I \quad (1 \le r \le 25)$$
-
-### 4. Qualitative Tolerability Index ($R$) — Equation (2)
-$$R = \begin{cases} 
-\text{intolerable (Red)}, & r \ge 15 \\ 
-\text{tolerable (Orange)}, & 5 \le r < 15 \\ 
-\text{acceptable (Light Green)}, & r < 5 
-\end{cases}$$
-
-- **Acceptable ($r < 5$)**: No further risk mitigation measures strictly required.
-- **Tolerable ($5 \le r < 15$)**: Risk can be tolerated based on approved operational mitigations and active monitoring.
-- **Intolerable ($r \ge 15$)**: Consequences are unacceptable; immediate mitigation is mandatory.
-
-### 5. Conversion to Five-Point Scale — Table 5
-$$\text{Scale}(r) = \begin{cases} 
-5, & r \ge 20 \quad (\text{Intolerable}) \\ 
-4, & 15 \le r < 20 \quad (\text{Intolerable}) \\ 
-3, & 10 \le r < 15 \quad (\text{Tolerable}) \\ 
-2, & 5 \le r < 10 \quad (\text{Tolerable}) \\ 
-1, & r < 5 \quad (\text{Acceptable}) 
-\end{cases}$$
+3. **Conversion to Five-Point Scale — Table 5:**
+   $$\text{Scale}(r) = \begin{cases} 
+   5, & r \ge 20 \quad (\text{Intolerable}) \\ 
+   4, & 15 \le r < 20 \quad (\text{Intolerable}) \\ 
+   3, & 10 \le r < 15 \quad (\text{Tolerable}) \\ 
+   2, & 5 \le r < 10 \quad (\text{Tolerable}) \\ 
+   1, & r < 5 \quad (\text{Acceptable}) 
+   \end{cases}$$
 
 ---
 
-## 🛡️ The Three Pillars of Aviation Cyber Resilience
-
-As established in Section II of the paper, mitigation rests on:
-1. **Capacity Building & Training**: Tabletop exercises, cyber flight simulations, pilot/controller awareness.
-2. **Procedures & Regulations**: ICAO/EASA regulations, strict pilot read-back/hear-back, frequency spectrum policing.
-3. **Systems & Security by Design**:
-   - Cryptographic standards: ARINC 823 / ACARS Message Security (AMS) with Elliptic Curve Cryptography (ECC).
-   - Sensor Data Fusion: Cross-checking cooperative SSR/ADS-B with non-cooperative Primary Radar (PSR) to eliminate ghost targets.
-   - Machine Learning TDoA Fingerprinting: Verifying ADS-B position claims using OpenSky Network historical data.
-   - Multi-Frequency GNSS (L1 + L5) with AAIM / RAIM multi-sensor integrity cross-checks.
-   - SWIM Common Public Key Infrastructure (PKI) and ICAO INNOVA/ACORNS private secure trust framework.
-
----
-
-## 🚀 How to Run the Dashboard
+## 🚀 How to Run the Live Simulator & Dashboard
 
 ### Option A: Direct Browser Launch (Zero Dependencies)
-Simply open `index.html` in any modern web browser (Google Chrome, Edge, Firefox, Safari):
+Simply open `index.html` in any modern web browser:
 ```bash
 # On Windows PowerShell:
 Start-Process "index.html"
@@ -103,10 +112,11 @@ python test_engine.py
 
 ## 📁 Repository Structure
 
-- `index.html`: Aerospace cockpit glass-themed single-page application.
-- `style.css`: Custom animations, color palettes, telemetry cards, and print styles.
-- `data.js`: Extracted dataset of 23 threat scenarios, protocol specifications (Tables 6, 8, 10), and literature comparison (Table 1).
-- `app.js`: Reactive controller managing charts, 5×5 matrix interactions, Algorithm 1 calculator, what-if simulator, and exports.
-- `risk_engine.py`: Standalone Python module executing Algorithm 1, dataclasses, and statistical summaries.
-- `test_engine.py`: Automated unit tests verifying 100% adherence to paper formulas and results.
+- `index.html`: Aerospace glass-cockpit dashboard with Live Tactical Radar Scope, Attack Deck, and 8 analytical workspaces.
+- `simulator.js`: Real-time kinematic flight engine, Red Team attack injector, and Blue Team predictive AI forecaster.
+- `app.js`: Reactive controller managing Chart.js visualizations, ICAO 5×5 matrix, Algorithm 1 evaluator, and export modules.
+- `data.js`: Extracted dataset of 23 threat scenarios, protocol specifications (Tables 6, 8, 10), and literature survey (Table 1).
+- `style.css`: Cockpit dark-mode styling, telemetry borders, radar sweep animations, and print stylesheets.
+- `risk_engine.py`: Standalone Python 3 engine executing Algorithm 1, dataclasses, and statistical summaries.
+- `test_engine.py`: Automated unit test suite verifying 100% adherence to paper formulas and results.
 - `server.py`: Lightweight Python server offering `/api/threats` and `/api/evaluate` REST endpoints.

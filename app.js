@@ -5,7 +5,7 @@
 
 // Global State
 const state = {
-  activeTab: "overview",
+  activeTab: "live-sim",
   domainFilter: "All",
   activeThreats: JSON.parse(JSON.stringify(INITIAL_THREATS)),
   selectedThreat: null,
@@ -111,6 +111,10 @@ document.addEventListener("DOMContentLoaded", () => {
   initEvaluator();
   initSimulator();
   renderAll();
+  // Initialize Live Airspace Radar Simulator
+  if (typeof airspaceSim !== "undefined") {
+    airspaceSim.init("radar-canvas");
+  }
 });
 
 // Render everything on load or data update
@@ -186,7 +190,13 @@ function switchTab(tabName) {
   });
 
   // Refresh charts when switching tabs
-  if (tabName === "overview") {
+  if (tabName === "live-sim") {
+    setTimeout(() => {
+      if (typeof airspaceSim !== "undefined") {
+        airspaceSim.init("radar-canvas");
+      }
+    }, 50);
+  } else if (tabName === "overview") {
     setTimeout(updateOverviewCharts, 50);
   } else if (tabName === "domains") {
     setTimeout(renderDomainCharts, 50);
