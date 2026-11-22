@@ -1,0 +1,161 @@
+/* Aviation Cybersecurity Risk Assessment Dashboard - Modern Glassmorphic Cockpit Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #06090e;
+  color: #f1f5f9;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Custom Cockpit Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tab Navigation Styling */
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #94a3b8;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.nav-tab-btn:hover {
+  color: #e2e8f0;
+  border-bottom-color: #334155;
+}
+
+.nav-tab-btn.active-nav-tab {
+  color: #38bdf8;
+  border-bottom-color: #0284c7;
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.04) 0%, rgba(14, 165, 233, 0.12) 100%);
+}
+
+/* Domain Subtab Buttons */
+.domain-subtab-btn {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.375rem;
+  color: #94a3b8;
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  transition: all 0.15s ease;
+}
+
+.domain-subtab-btn:hover {
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+.domain-subtab-btn.active-subtab {
+  color: #38bdf8;
+  background-color: #0c4a6e;
+  border-color: #0284c7;
+}
+
+/* Filter Pills */
+.domain-filter-pill {
+  padding: 0.25rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  color: #94a3b8;
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.domain-filter-pill:hover {
+  color: #e2e8f0;
+  border-color: #38bdf8;
+}
+
+.domain-filter-pill.active-pill {
+  color: #ffffff;
+  background-color: #0284c7;
+  border-color: #38bdf8;
+}
+
+/* Matrix Mode Buttons */
+.matrix-mode-btn {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  border-radius: 0.25rem;
+  color: #94a3b8;
+  background-color: #0f172a;
+  border: 1px solid #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.matrix-mode-btn.active-mode {
+  color: #38bdf8;
+  background-color: #0369a1;
+  border-color: #38bdf8;
+}
+
+/* Radar pulse animation for critical radar screen feel */
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.radar-sweep-effect {
+  animation: radar-sweep 8s linear infinite;
+  transform-origin: center center;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, nav, .no-print, button {
+    display: none !important;
+  }
+  .tab-content-panel {
+    display: block !important;
+  }
+  table, tr, td, th {
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+}

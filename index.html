@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Civil Aviation Cybersecurity Risk Assessment Dashboard</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cockpit: {
+              bg: '#06090e',
+              card: '#0c1322',
+              cardHover: '#131e33',
+              border: '#1e293b',
+              accent: '#38bdf8',
+              accentDark: '#0284c7',
+              warning: '#f59e0b',
+              danger: '#ef4444',
+              success: '#10b981'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-[#06090e] text-slate-100 min-h-screen flex flex-col antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- TOP HEADER / TELEMETRY STATUS BAR -->
+  <header class="border-b border-slate-800 bg-[#090e18]/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="h-9 w-9 rounded-lg bg-sky-950 border border-sky-600/50 flex items-center justify-center text-sky-400 font-bold shadow-lg shadow-sky-900/30">
+          <i data-lucide="plane" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base font-bold text-white tracking-wide">Civil Aviation Cybersecurity Risk Dashboard</h1>
+            <span class="px-2 py-0.5 text-[10px] uppercase font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800 rounded">ICAO Compliant</span>
+          </div>
+          <p class="text-xs text-slate-400">Based on Algorithm 1 & Framework by A. A. Elmarady & K. Rahouma (IEEE Access 2021)</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex items-center space-x-2 text-xs font-mono">
+        <div class="flex items-center space-x-1.5 px-3 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>CNS/ATM Risk Engine: Online</span>
+        </div>
+        <button onclick="exportThreatsJSON()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200 transition-colors flex items-center space-x-1">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>JSON</span>
+        </button>
+        <button onclick="exportThreatsCSV()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200 transition-colors flex items-center space-x-1">
+          <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+          <span>CSV</span>
+        </button>
+        <button onclick="printAuditReport()" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 font-bold text-white rounded transition-colors flex items-center space-x-1 shadow-md shadow-sky-900/40">
+          <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+          <span>Print Audit</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- PRIMARY NAVIGATION TABS -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-1 overflow-x-auto no-scrollbar border-t border-slate-800/60">
+      <button class="nav-tab-btn active-nav-tab" data-tab="overview">
+        <i data-lucide="gauge" class="w-4 h-4 mr-1.5"></i> Overview & Cockpit
+      </button>
+      <button class="nav-tab-btn" data-tab="matrix">
+        <i data-lucide="grid-3x3" class="w-4 h-4 mr-1.5"></i> 5×5 ICAO Risk Matrix (Table 4)
+      </button>
+      <button class="nav-tab-btn" data-tab="domains">
+        <i data-lucide="radio" class="w-4 h-4 mr-1.5"></i> CNS & SWIM Deep-Dives
+      </button>
+      <button class="nav-tab-btn" data-tab="evaluator">
+        <i data-lucide="calculator" class="w-4 h-4 mr-1.5"></i> Algorithm 1 Evaluator
+      </button>
+      <button class="nav-tab-btn" data-tab="simulator">
+        <i data-lucide="shield-check" class="w-4 h-4 mr-1.5"></i> What-If Mitigation Simulator
+      </button>
+      <button class="nav-tab-btn" data-tab="topology">
+        <i data-lucide="network" class="w-4 h-4 mr-1.5"></i> Architecture & Attack Surface
+      </button>
+      <button class="nav-tab-btn" data-tab="benchmark">
+        <i data-lucide="book-open" class="w-4 h-4 mr-1.5"></i> Literature Survey (Table 1)
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- KPI EXECUTIVE STATS CARDS -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="p-3.5 bg-slate-900/80 border border-slate-800 rounded-lg">
+        <div class="text-[10px] font-mono uppercase text-slate-400">Total Scenarios</div>
+        <div id="stat-total-threats" class="text-2xl font-bold font-mono text-white mt-1">23</div>
+        <div class="text-[10px] text-slate-500 font-mono mt-0.5">10 Aviation Assets</div>
+      </div>
+
+      <div class="p-3.5 bg-red-950/30 border border-red-900/60 rounded-lg">
+        <div class="text-[10px] font-mono uppercase text-red-400">Intolerable Risks (r ≥ 15)</div>
+        <div id="stat-intolerable-count" class="text-2xl font-bold font-mono text-red-500 mt-1">1</div>
+        <div class="text-[10px] text-red-400/80 font-mono mt-0.5">VHF Voice Spoofing</div>
+      </div>
+
+      <div class="p-3.5 bg-amber-950/30 border border-amber-900/60 rounded-lg">
+        <div class="text-[10px] font-mono uppercase text-amber-400">Tolerable Risks (5 ≤ r &lt; 15)</div>
+        <div id="stat-tolerable-count" class="text-2xl font-bold font-mono text-amber-400 mt-1">16</div>
+        <div class="text-[10px] text-amber-400/80 font-mono mt-0.5">Active Monitoring</div>
+      </div>
+
+      <div class="p-3.5 bg-emerald-950/30 border border-emerald-900/60 rounded-lg">
+        <div class="text-[10px] font-mono uppercase text-emerald-400">Acceptable Risks (r &lt; 5)</div>
+        <div id="stat-acceptable-count" class="text-2xl font-bold font-mono text-emerald-400 mt-1">6</div>
+        <div class="text-[10px] text-emerald-400/80 font-mono mt-0.5">Standard Operation</div>
+      </div>
+
+      <div class="p-3.5 bg-slate-900/80 border border-slate-800 rounded-lg">
+        <div class="text-[10px] font-mono uppercase text-slate-400">Mean Risk Index (r)</div>
+        <div id="stat-avg-risk" class="text-2xl font-bold font-mono text-sky-400 mt-1">8.8</div>
+        <div class="text-[10px] text-slate-500 font-mono mt-0.5">Scale 2/5 (Tolerable)</div>
+      </div>
+
+      <div class="p-3.5 bg-slate-900/80 border border-slate-800 rounded-lg">
+        <div class="text-[10px] font-mono uppercase text-slate-400">Highest Threat Asset</div>
+        <div id="stat-highest-threat" class="text-xs font-bold font-mono text-red-400 mt-1 truncate">VHF Voice Spoofing (r=15)</div>
+        <div class="text-[10px] text-slate-500 font-mono mt-0.5">Immediate Mitigation</div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 1: EXECUTIVE OVERVIEW & COCKPIT -->
+    <!-- ======================================================== -->
+    <div id="tab-overview" class="tab-content-panel space-y-6">
+      
+      <!-- Key Findings Banner from Paper -->
+      <div class="bg-gradient-to-r from-slate-900 via-sky-950/40 to-slate-900 border border-sky-800/40 rounded-xl p-5 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center space-x-2">
+            <span class="p-1 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+              <i data-lucide="compass" class="w-4 h-4"></i>
+            </span>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-white font-mono">Core Research Findings Summary (Elmarady & Rahouma, 2021)</h2>
+          </div>
+          <span class="text-xs font-mono text-sky-400">IEEE Access Paper Analysis</span>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+          <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+            <div class="font-mono text-[10px] text-slate-400 uppercase font-bold">Communication Link</div>
+            <div class="mt-1 font-bold text-red-400">Highest Risk: VHF Voice</div>
+            <div class="font-mono text-emerald-400 text-[11px] mt-0.5">Lowest Risk: CPDLC</div>
+            <p class="text-[11px] text-slate-400 mt-1">VHF voice lacks encryption; spoofing triggers intolerable hazards. CPDLC data link has selective addressing.</p>
+          </div>
+
+          <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+            <div class="font-mono text-[10px] text-slate-400 uppercase font-bold">Radio Navigation Aids</div>
+            <div class="mt-1 font-bold text-amber-400">Highest Risk: GNSS (GPS)</div>
+            <div class="font-mono text-emerald-400 text-[11px] mt-0.5">Lowest Risk: ILS / VOR</div>
+            <p class="text-[11px] text-slate-400 mt-1">Satellite signals are extremely weak (-160 dBW) and easily jammed by cheap PPDs. Ground aids require specialized local transmitters.</p>
+          </div>
+
+          <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+            <div class="font-mono text-[10px] text-slate-400 uppercase font-bold">Aeronautical Surveillance</div>
+            <div class="mt-1 font-bold text-amber-400">Highest Risk: ADS-B</div>
+            <div class="font-mono text-emerald-400 text-[11px] mt-0.5">Lowest Risk: SSR / PSR</div>
+            <p class="text-[11px] text-slate-400 mt-1">ADS-B broadcasts open 1090 MHz squitters prone to ghost targets. Secondary Radar (SSR) uses directional interrogation.</p>
+          </div>
+
+          <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-lg">
+            <div class="font-mono text-[10px] text-slate-400 uppercase font-bold">Networking & Architecture</div>
+            <div class="mt-1 font-bold text-amber-300">SWIM Risk: Medium (Tolerable)</div>
+            <div class="font-mono text-sky-400 text-[11px] mt-0.5">Key Threat: MITM / IP Attacks</div>
+            <p class="text-[11px] text-slate-400 mt-1">Net-centric IP exchanges introduce standard cyber vectors. Private IP networks & manual backups prevent direct crashes.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overview Charts Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Tolerability Distribution Donut -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase font-mono text-slate-300 flex items-center">
+              <i data-lucide="pie-chart" class="w-3.5 h-3.5 text-sky-400 mr-1.5"></i> Risk Tolerability Breakdown
+            </h3>
+            <span class="text-[10px] font-mono text-slate-500">Eq. 2</span>
+          </div>
+          <div class="relative h-56 w-full">
+            <canvas id="overview-donut-chart"></canvas>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 text-center">Intolerable (r ≥ 15) requires immediate mitigation; Tolerable (5 ≤ r &lt; 15) is managed under controls.</p>
+        </div>
+
+        <!-- Domain Comparison Bar Chart -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase font-mono text-slate-300 flex items-center">
+              <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 text-sky-400 mr-1.5"></i> Domain Severity Comparison
+            </h3>
+            <span class="text-[10px] font-mono text-slate-500">r = L × I</span>
+          </div>
+          <div class="relative h-56 w-full">
+            <canvas id="overview-domain-chart"></canvas>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 text-center">Peak risk observed in Communication (VHF Spoofing), followed by Surveillance (ADS-B Jamming).</p>
+        </div>
+
+        <!-- CIA Triad Radar Chart -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-bold uppercase font-mono text-slate-300 flex items-center">
+              <i data-lucide="radar" class="w-3.5 h-3.5 text-sky-400 mr-1.5"></i> CIA Triad Exposure Profile
+            </h3>
+            <span class="text-[10px] font-mono text-slate-500">Security Attributes</span>
+          </div>
+          <div class="relative h-56 w-full">
+            <canvas id="overview-radar-chart"></canvas>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2 text-center">Integrity attacks carry the highest flight safety impact; Availability attacks have higher occurrence likelihood.</p>
+        </div>
+      </div>
+
+      <!-- Comprehensive Threat Registry Table -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-sm font-bold uppercase font-mono text-white flex items-center">
+              <i data-lucide="list-checks" class="w-4 h-4 text-sky-400 mr-2"></i> Aviation Cybersecurity Threat Registry
+            </h3>
+            <span id="filtered-threat-count" class="text-xs font-mono text-slate-400">23 scenarios cataloged</span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Search bar -->
+            <div class="relative">
+              <input type="text" id="threat-search-input" placeholder="Search asset or threat..." class="w-56 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+              <i data-lucide="search" class="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-500"></i>
+            </div>
+
+            <!-- Domain filter pills -->
+            <div class="flex items-center space-x-1">
+              <button class="domain-filter-pill active-pill" data-domain="All">All</button>
+              <button class="domain-filter-pill" data-domain="Communication">Communication</button>
+              <button class="domain-filter-pill" data-domain="Navigation">Navigation</button>
+              <button class="domain-filter-pill" data-domain="Surveillance">Surveillance</button>
+              <button class="domain-filter-pill" data-domain="Networking">SWIM</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] font-mono uppercase text-slate-400 bg-slate-950/60">
+                <th class="py-2.5 px-4">Threat ID</th>
+                <th class="py-2.5 px-4">Asset & Domain</th>
+                <th class="py-2.5 px-4">Attack Scenario</th>
+                <th class="py-2.5 px-4 text-center">Likelihood (L)</th>
+                <th class="py-2.5 px-4 text-center">Impact (I)</th>
+                <th class="py-2.5 px-4 text-center">Risk Level (r)</th>
+                <th class="py-2.5 px-4 text-center">Tolerability (R)</th>
+                <th class="py-2.5 px-4 text-center">5-Pt Scale</th>
+                <th class="py-2.5 px-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="threat-table-body" class="divide-y divide-slate-800/40">
+              <!-- Populated by app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 2: INTERACTIVE 5x5 ICAO RISK MATRIX (Table 4) -->
+    <!-- ======================================================== -->
+    <div id="tab-matrix" class="tab-content-panel hidden space-y-6">
+      
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <h2 class="text-base font-bold text-white font-mono uppercase">ICAO Cybersecurity Risk Assessment Matrix (Table 4)</h2>
+              <span class="px-2 py-0.5 text-[10px] font-mono bg-sky-950 text-sky-300 border border-sky-800 rounded">Formula: r = L × I</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Click any matrix coordinate or threat badge to inspect full scenario mechanics and mitigations.</p>
+          </div>
+
+          <div class="flex items-center space-x-3 text-xs">
+            <!-- Mode Switcher -->
+            <div class="flex items-center space-x-1 bg-slate-950 p-1 rounded border border-slate-800">
+              <span class="text-[10px] uppercase font-mono text-slate-500 px-1">Display:</span>
+              <button class="matrix-mode-btn active-mode" data-mode="r">Risk (r)</button>
+              <button class="matrix-mode-btn" data-mode="scale">5-Pt Scale</button>
+              <button class="matrix-mode-btn" data-mode="count">Threat Count</button>
+            </div>
+
+            <!-- Residual Risk Toggle -->
+            <label class="flex items-center space-x-2 cursor-pointer bg-slate-950 px-3 py-1.5 rounded border border-slate-800">
+              <input type="checkbox" id="matrix-mitigation-toggle" class="form-checkbox h-3.5 w-3.5 text-sky-500 rounded bg-slate-900 border-slate-700">
+              <span class="text-xs font-mono text-slate-300">Simulate Residual Risk</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Matrix Color Legend -->
+        <div class="flex items-center space-x-4 mb-4 text-xs font-mono">
+          <div class="flex items-center space-x-1.5">
+            <span class="w-3.5 h-3.5 rounded bg-emerald-500"></span>
+            <span class="text-emerald-300">Acceptable (r &lt; 5)</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="w-3.5 h-3.5 rounded bg-amber-500"></span>
+            <span class="text-amber-300">Tolerable (5 ≤ r &lt; 15)</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="w-3.5 h-3.5 rounded bg-red-500"></span>
+            <span class="text-red-300">Intolerable (r ≥ 15)</span>
+          </div>
+        </div>
+
+        <!-- Matrix Grid Container -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 overflow-x-auto">
+            <div class="min-w-[540px]">
+              <!-- Impact Column Headers (Top) -->
+              <div class="grid grid-cols-6 gap-1 mb-1 text-center font-mono text-xs font-bold text-slate-400">
+                <div class="p-2 text-slate-600">L \ I</div>
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-sky-400 font-extrabold">1</div>
+                  <div class="text-[9px] text-slate-500 uppercase">Low</div>
+                </div>
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-sky-400 font-extrabold">2</div>
+                  <div class="text-[9px] text-slate-500 uppercase">Med-Low</div>
+                </div>
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-sky-400 font-extrabold">3</div>
+                  <div class="text-[9px] text-slate-500 uppercase">Medium</div>
+                </div>
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-sky-400 font-extrabold">4</div>
+                  <div class="text-[9px] text-slate-500 uppercase">Med-High</div>
+                </div>
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-sky-400 font-extrabold">5</div>
+                  <div class="text-[9px] text-slate-500 uppercase">High</div>
+                </div>
+              </div>
+
+              <!-- Matrix Rows (Likelihood 5 down to 1) -->
+              <div id="risk-matrix-grid" class="grid grid-cols-6 gap-1">
+                <!-- Dynamically populated by app.js -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Matrix Side Inspector -->
+          <div class="space-y-4">
+            <div id="matrix-cell-inspection">
+              <div class="p-4 bg-slate-900 border border-slate-800 rounded-lg text-center text-slate-400 text-xs">
+                <i data-lucide="info" class="w-6 h-6 mx-auto mb-2 text-sky-400"></i>
+                <p>Click on any matrix cell or threat badge to inspect its exact operational criteria and active threats.</p>
+              </div>
+            </div>
+
+            <!-- Table 5 Reference Card -->
+            <div class="p-3.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono">
+              <h4 class="text-[11px] font-bold text-sky-400 uppercase mb-2">Table 5: Risk Conversion Scale</h4>
+              <div class="space-y-1 text-[11px]">
+                <div class="flex justify-between py-0.5 border-b border-slate-800/80">
+                  <span class="text-red-400">r ≥ 20</span>
+                  <span class="text-red-400 font-bold">Scale 5 (Intolerable)</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-slate-800/80">
+                  <span class="text-red-400">20 &gt; r ≥ 15</span>
+                  <span class="text-red-400 font-bold">Scale 4 (Intolerable)</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-slate-800/80">
+                  <span class="text-amber-400">15 &gt; r ≥ 10</span>
+                  <span class="text-amber-400 font-bold">Scale 3 (Tolerable)</span>
+                </div>
+                <div class="flex justify-between py-0.5 border-b border-slate-800/80">
+                  <span class="text-amber-400">10 &gt; r ≥ 5</span>
+                  <span class="text-amber-400 font-bold">Scale 2 (Tolerable)</span>
+                </div>
+                <div class="flex justify-between py-0.5">
+                  <span class="text-emerald-400">r &lt; 5</span>
+                  <span class="text-emerald-400 font-bold">Scale 1 (Acceptable)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 3: CNS & SWIM DEEP-DIVES -->
+    <!-- ======================================================== -->
+    <div id="tab-domains" class="tab-content-panel hidden space-y-6">
+      
+      <!-- Domain Subtabs -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex space-x-2">
+          <button class="domain-subtab-btn active-subtab" data-domain="Communication">Communication (VHF, CPDLC, ACARS)</button>
+          <button class="domain-subtab-btn" data-domain="Navigation">Navigation (GNSS, ILS, VOR, DME)</button>
+          <button class="domain-subtab-btn" data-domain="Surveillance">Surveillance (SSR, MLAT, ADS-B, PSR)</button>
+          <button class="domain-subtab-btn" data-domain="Networking">Networking / SWIM</button>
+        </div>
+        <span class="text-xs font-mono text-slate-400 hidden sm:inline">Figures 3 - 13 Paper Replication</span>
+      </div>
+
+      <!-- Domain Bar Chart Replicating Paper Figures -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="text-sm font-bold uppercase font-mono text-white">Threat Likelihood, Impact & Risk Bar Assessment</h3>
+            <p class="text-xs text-slate-400">Exact reproduction of IEEE Access 5-point assessment charts</p>
+          </div>
+          <div class="flex items-center space-x-3 text-xs font-mono">
+            <span class="flex items-center"><span class="w-3 h-3 bg-pink-500 rounded mr-1"></span> Likelihood</span>
+            <span class="flex items-center"><span class="w-3 h-3 bg-blue-600 rounded mr-1"></span> Impact</span>
+            <span class="flex items-center"><span class="w-3 h-3 bg-red-600 rounded mr-1"></span> Risk Level (1-5)</span>
+          </div>
+        </div>
+
+        <div id="domain-chart-container" class="relative h-72 w-full">
+          <canvas id="domain-specific-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Domain Technical Narrative -->
+      <div id="domain-narrative-box">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+
+      <!-- Technical Protocol Specification Table -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+        <h3 class="text-sm font-bold uppercase font-mono text-white mb-3">Protocol Architecture & Vulnerability Profile</h3>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] font-mono uppercase text-slate-400 bg-slate-950">
+                <th class="py-2 px-3">System / Protocol</th>
+                <th class="py-2 px-3">Operational Usage</th>
+                <th class="py-2 px-3">Signal & Modulation</th>
+                <th class="py-2 px-3">Frequency Band</th>
+                <th class="py-2 px-3">Coverage / Link Layer</th>
+                <th class="py-2 px-3">Standard / Vulnerability</th>
+              </tr>
+            </thead>
+            <tbody id="protocol-table-communication" class="divide-y divide-slate-800/40">
+              <!-- Dynamically populated -->
+            </tbody>
+            <tbody id="protocol-table-navigation" class="divide-y divide-slate-800/40">
+              <!-- Dynamically populated -->
+            </tbody>
+            <tbody id="protocol-table-surveillance" class="divide-y divide-slate-800/40">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 4: ALGORITHM 1 INTERACTIVE EVALUATOR -->
+    <!-- ======================================================== -->
+    <div id="tab-evaluator" class="tab-content-panel hidden space-y-6">
+      
+      <div class="bg-gradient-to-r from-slate-900 via-sky-950/30 to-slate-900 border border-sky-800/40 rounded-xl p-5">
+        <div class="flex items-center space-x-2 mb-2">
+          <span class="p-1.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+            <i data-lucide="cpu" class="w-4 h-4"></i>
+          </span>
+          <h2 class="text-base font-bold text-white font-mono uppercase">Algorithm 1: Cybersecurity Risk Assessment Execution Engine</h2>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed max-w-4xl">
+          Evaluate any new or modified civil aviation asset against cybersecurity threats following the 10-step systematic algorithm described in Section II. Complete the guided factor questionnaires for Likelihood (Table 2) and Impact (Table 3) to calculate the numeric risk level <span class="font-mono text-sky-400">r = L × I</span>, tolerability index <span class="font-mono text-sky-400">R</span>, and the 5-point scale score.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Input Steps (Col 1 & 2) -->
+        <div class="lg:col-span-2 space-y-5">
+          <!-- Step 1 & 2: Asset and Threat -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div class="flex items-center space-x-2 text-xs font-mono font-bold uppercase text-sky-400">
+              <span class="w-5 h-5 rounded-full bg-sky-950 border border-sky-700 flex items-center justify-center text-[10px]">1</span>
+              <span>Asset & Cyber-Attack Scenario Identification</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Asset to be Protected</label>
+                <input type="text" id="eval-asset-name" placeholder="e.g. Space-Based ADS-B, Remote Tower, AeroMACS" value="Remote Tower Link" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Domain Classification</label>
+                <select id="eval-domain" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+                  <option value="Communication">Communication</option>
+                  <option value="Navigation">Navigation</option>
+                  <option value="Surveillance">Surveillance</option>
+                  <option value="Networking">Networking / SWIM</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Cyber-Attack Scenario</label>
+                <input type="text" id="eval-threat-name" placeholder="e.g. Video Stream Tampering, Ransomware" value="Optical Camera Stream Hijacking" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Targeted CIA Security Pillar</label>
+                <select id="eval-cia" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 focus:outline-none focus:border-sky-500 font-mono">
+                  <option value="Integrity">Integrity (Data alteration / Spoofing)</option>
+                  <option value="Availability">Availability (Jamming / Denial of Service)</option>
+                  <option value="Confidentiality">Confidentiality (Eavesdropping / Interception)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Likelihood Estimator (Table 2) -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div class="flex items-center space-x-2 text-xs font-mono font-bold uppercase text-pink-400">
+              <span class="w-5 h-5 rounded-full bg-pink-950 border border-pink-700 flex items-center justify-center text-[10px]">2</span>
+              <span>Likelihood Assessment (Table 2 Guided Criteria)</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Cost of Tools Used in Attack</label>
+                <select id="eval-cost" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: Less than $1,000 (Commercial SDR / RTL-SDR)</option>
+                  <option value="4">Scale 4: Less than $5,000 (High-end SDR / Amp)</option>
+                  <option value="3" selected>Scale 3: Less than $10,000 (Specialized RF rig)</option>
+                  <option value="2">Scale 2: Less than $100,000 (High-power lab equipment)</option>
+                  <option value="1">Scale 1: More than $100,000 (Military-grade EW)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Accessibility of Tools</label>
+                <select id="eval-accessibility" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: Easily accessible (Online purchase)</option>
+                  <option value="4" selected>Scale 4: Available but not so easy</option>
+                  <option value="3">Scale 3: Available with some conditions</option>
+                  <option value="2">Scale 2: Restricted access</option>
+                  <option value="1">Scale 1: Highly restricted access</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Historical Frequency of Similar Attacks</label>
+                <select id="eval-frequency" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: At least once every 2 weeks</option>
+                  <option value="4">Scale 4: At least once every 3 months</option>
+                  <option value="3" selected>Scale 3: Once every 3 months to a year</option>
+                  <option value="2">Scale 2: Once every 1 to 3 years</option>
+                  <option value="1">Scale 1: Once every 3 years or more</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Required Attacker Expertise</label>
+                <select id="eval-expertise" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: Basic knowledge</option>
+                  <option value="4">Scale 4: Substantial basic information</option>
+                  <option value="3" selected>Scale 3: Advanced training & knowledge</option>
+                  <option value="2">Scale 2: Advanced knowledge & experience</option>
+                  <option value="1">Scale 1: Complex advanced specialized expertise</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Impact Estimator (Table 3) -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div class="flex items-center space-x-2 text-xs font-mono font-bold uppercase text-blue-400">
+              <span class="w-5 h-5 rounded-full bg-blue-950 border border-blue-700 flex items-center justify-center text-[10px]">3</span>
+              <span>Impact Assessment (Table 3 Worst-Case Criteria)</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Operational Flight Impact</label>
+                <select id="eval-operations" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: Serious (no services, extended outage)</option>
+                  <option value="4" selected>Scale 4: Major (majority of services halted)</option>
+                  <option value="3">Scale 3: Moderate (some services lost)</option>
+                  <option value="2">Scale 2: Minor (services degraded)</option>
+                  <option value="1">Scale 1: Insignificant (services normal)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Financial Recovery Level</label>
+                <select id="eval-finance" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: Serious (governmental support required)</option>
+                  <option value="4" selected>Scale 4: Major (board-level approval)</option>
+                  <option value="3">Scale 3: Moderate (upper management approval)</option>
+                  <option value="2">Scale 2: Minor (delegated approval)</option>
+                  <option value="1">Scale 1: Insignificant (business unit budget)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Reputation & Confidence</label>
+                <select id="eval-reputation" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono">
+                  <option value="5">Scale 5: Irrecoverable (loss of viability)</option>
+                  <option value="4" selected>Scale 4: Major stakeholder capability doubt</option>
+                  <option value="3">Scale 3: Affected on company activities</option>
+                  <option value="2">Scale 2: Key stakeholder complaints</option>
+                  <option value="1">Scale 1: Isolated individual complaints</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Manual Value Override Toggle -->
+            <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+              <label class="flex items-center space-x-2 text-slate-400 cursor-pointer">
+                <input type="checkbox" id="eval-override-toggle" class="form-checkbox text-sky-500 rounded bg-slate-950 border-slate-700">
+                <span>Direct manual entry of L and I</span>
+              </label>
+
+              <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-1">
+                  <span class="text-slate-400">L:</span>
+                  <input type="number" id="eval-manual-l" step="0.1" min="1.0" max="5.0" value="3.5" class="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-center text-pink-400 font-bold">
+                </div>
+                <div class="flex items-center space-x-1">
+                  <span class="text-slate-400">I:</span>
+                  <input type="number" id="eval-manual-i" step="0.1" min="1.0" max="5.0" value="4.0" class="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded text-center text-sky-400 font-bold">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Description and Mitigations -->
+          <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div class="text-xs font-mono font-bold uppercase text-slate-300">
+              Operational Context & Prescribed Mitigations
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Scenario Description / Attack Mechanism</label>
+                <textarea id="eval-desc" rows="3" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:outline-none focus:border-sky-500" placeholder="Describe the vulnerability, signal path, and potential failure mode...">Adversary injects forged video stream packets into high-speed fiber link, substituting real runway footage with recorded loop.</textarea>
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1 font-mono">Mitigation Measures (One per line)</label>
+                <textarea id="eval-mitigations" rows="3" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded text-slate-200 font-mono text-xs focus:outline-none focus:border-sky-500" placeholder="Mitigations...">MACsec hardware cryptographic encryption on video links
+Surface movement radar cross-validation
+Optical watermarking and timestamp frames</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result Card & Action Trigger (Col 3) -->
+        <div class="space-y-4">
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-5 text-center flex flex-col justify-between">
+            <div>
+              <span class="text-[11px] font-mono uppercase tracking-wider text-slate-400">Calculated Assessment Result</span>
+              
+              <!-- Big Gauge Value -->
+              <div class="my-4">
+                <div class="text-xs font-mono text-slate-500 mb-1">r = L × I (Equation 1)</div>
+                <div id="eval-result-r" class="text-4xl font-extrabold font-mono text-amber-400">14.0</div>
+                <div id="eval-result-tolerability" class="inline-block mt-2 px-3 py-1 rounded text-xs font-bold uppercase tracking-wider font-mono bg-amber-500 text-slate-900">
+                  TOLERABLE
+                </div>
+              </div>
+
+              <!-- L and I breakdown -->
+              <div class="grid grid-cols-2 gap-2 my-3 text-xs font-mono">
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-[10px] text-slate-500 uppercase">Likelihood (L)</div>
+                  <div id="eval-result-l" class="text-base font-bold text-pink-400 mt-0.5">3.5</div>
+                </div>
+                <div class="p-2 bg-slate-950 rounded border border-slate-800">
+                  <div class="text-[10px] text-slate-500 uppercase">Impact (I)</div>
+                  <div id="eval-result-i" class="text-base font-bold text-sky-400 mt-0.5">4.0</div>
+                </div>
+              </div>
+
+              <div id="eval-result-scale" class="text-xs font-mono text-slate-400 py-1 bg-slate-950 rounded border border-slate-800">
+                Scale 3 of 5
+              </div>
+            </div>
+
+            <!-- Action Recommendation Banner -->
+            <div id="eval-action-recommendation" class="mt-4">
+              <!-- Rendered by app.js -->
+            </div>
+
+            <button id="eval-save-btn" class="mt-4 w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs font-mono uppercase rounded transition-colors shadow-lg shadow-sky-900/40 flex items-center justify-center space-x-2">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i>
+              <span>Add to Live Risk Registry</span>
+            </button>
+          </div>
+
+          <!-- Formula Card -->
+          <div class="p-4 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-400 space-y-2">
+            <h4 class="font-bold text-slate-200 uppercase">Mathematical Formalism</h4>
+            <div class="text-[11px] leading-relaxed">
+              <div class="text-sky-300">r = L × I &nbsp;&nbsp;(r ∈ [1, 25])</div>
+              <div class="text-slate-400 mt-1">R = intolerable if r ≥ 15</div>
+              <div class="text-slate-400">R = tolerable if 15 &gt; r ≥ 5</div>
+              <div class="text-slate-400">R = acceptable if r &lt; 5</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 5: WHAT-IF MITIGATION SIMULATOR -->
+    <!-- ======================================================== -->
+    <div id="tab-simulator" class="tab-content-panel hidden space-y-6">
+      
+      <div class="bg-gradient-to-r from-slate-900 via-sky-950/40 to-slate-900 border border-sky-800/40 rounded-xl p-5">
+        <div class="flex items-center space-x-2 mb-2">
+          <span class="p-1.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+            <i data-lucide="shield" class="w-4 h-4"></i>
+          </span>
+          <h2 class="text-base font-bold text-white font-mono uppercase">Three-Pillar Aviation Cyber Resilience Simulator</h2>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed max-w-4xl">
+          As established in Section II (Page 4), civil aviation cyber-resilience rests on <strong>Three Main Pillars: Capacity Building, Procedures, and Systems / Security by Design</strong>. Toggle proposed countermeasures below to observe real-time residual risk reduction across the entire CNS/ATM fleet.
+        </p>
+      </div>
+
+      <!-- Simulator Metrics Header -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="p-4 bg-slate-900 border border-slate-800 rounded-lg text-center">
+          <span class="text-[11px] font-mono text-slate-400 uppercase">Overall Risk Reduction</span>
+          <div id="sim-reduction-pct" class="text-3xl font-extrabold font-mono text-emerald-400 mt-1">0%</div>
+          <span class="text-[10px] text-slate-500 font-mono">Fleet-Wide Mitigation</span>
+        </div>
+
+        <div class="p-4 bg-slate-900 border border-slate-800 rounded-lg text-center">
+          <span class="text-[11px] font-mono text-slate-400 uppercase">Intolerable Risks</span>
+          <div class="text-3xl font-extrabold font-mono text-white mt-1">
+            <span id="sim-intolerable-before" class="text-red-500">1</span>
+            <span class="text-slate-500 text-lg">→</span>
+            <span id="sim-intolerable-after" class="text-emerald-400">0</span>
+          </div>
+          <span class="text-[10px] text-slate-500 font-mono">Elimination Target</span>
+        </div>
+
+        <div class="p-4 bg-slate-900 border border-slate-800 rounded-lg text-center">
+          <span class="text-[11px] font-mono text-slate-400 uppercase">Total Cumulative Risk</span>
+          <div class="text-xl font-bold font-mono text-white mt-1.5">
+            <span id="sim-total-risk-before" class="text-slate-400">201.8</span>
+            <span class="text-slate-500 text-sm">→</span>
+            <span id="sim-total-risk-after" class="text-sky-400">201.8</span>
+          </div>
+          <span class="text-[10px] text-slate-500 font-mono">Sum of All Scenarios</span>
+        </div>
+
+        <div class="p-4 bg-slate-900 border border-slate-800 rounded-lg text-center">
+          <span class="text-[11px] font-mono text-slate-400 uppercase">Safety Resilience Target</span>
+          <div class="text-2xl font-bold font-mono text-sky-400 mt-1">ICAO 2030</div>
+          <span class="text-[10px] text-slate-500 font-mono">GANP ASBU Block 3/1</span>
+        </div>
+      </div>
+
+      <!-- Mitigation Toggles (The 3 Pillars) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <!-- Pillar 1: Procedures & Regulations -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center space-x-2 text-xs font-mono font-bold text-sky-400 uppercase border-b border-slate-800 pb-2">
+            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+            <span>Pillar 1: Procedures & Training</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-strict-hearback" class="sim-toggle form-checkbox mt-0.5 text-sky-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">Mandatory Pilot-ATC Read-Back & Voice Verification</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Mitigates VHF voice spoofing by requiring secondary radar altitude confirmation and dual-frequency check for clearances.</p>
+              </div>
+            </label>
+
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-freq-mgmt" class="sim-toggle form-checkbox mt-0.5 text-sky-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">Spectrum Policing & Pre-Allocated Standby Channels</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Enables immediate zero-delay frequency hop upon intentional or unintentional VHF interference detection.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Pillar 2: Systems & Security by Design (CNS) -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center space-x-2 text-xs font-mono font-bold text-pink-400 uppercase border-b border-slate-800 pb-2">
+            <i data-lucide="layers" class="w-4 h-4"></i>
+            <span>Pillar 2: Technical Avionics & Cryptography</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-arinc-crypto" class="sim-toggle form-checkbox mt-0.5 text-pink-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">ARINC 823 / AMS Message Security Cryptography</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Adds digital signatures and Elliptic Curve Cryptography (ECC) to CPDLC and ACARS weight/flight plan updates.</p>
+              </div>
+            </label>
+
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-multi-gnss" class="sim-toggle form-checkbox mt-0.5 text-pink-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">Multi-Frequency GNSS (L1+L5) & AAIM Sensor Fusion</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Immunity to single-frequency jammers; on-board IRS & DME-DME cross-fix prevents deceptive trajectory spoofing.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Pillar 3: Surveillance & Network Security by Design -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex items-center space-x-2 text-xs font-mono font-bold text-emerald-400 uppercase border-b border-slate-800 pb-2">
+            <i data-lucide="lock" class="w-4 h-4"></i>
+            <span>Pillar 3: Sensor Fusion & SWIM PKI</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-ssr-fusion" class="sim-toggle form-checkbox mt-0.5 text-emerald-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">SSR + Primary Radar (PSR) Data Fusion</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Cross-validates cooperative SSR transponder replies with uncooperative PSR skin reflections to reject ghost targets.</p>
+              </div>
+            </label>
+
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-tdoa-ml" class="sim-toggle form-checkbox mt-0.5 text-emerald-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">TDoA Machine Learning ADS-B Localization [Elmarady 2021]</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Uses OpenSky historical TDoA fingerprints to verify claimed ADS-B positions independently of message contents.</p>
+              </div>
+            </label>
+
+            <label class="flex items-start space-x-2.5 cursor-pointer">
+              <input type="checkbox" id="sim-swim-pki" class="sim-toggle form-checkbox mt-0.5 text-emerald-500 rounded bg-slate-950 border-slate-700">
+              <div>
+                <span class="font-bold text-slate-200">SWIM Common PKI & ICAO INNOVA/ACORNS Trust Framework</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">Enforces mutual TLS and digital certificates across all ANSPs, airlines, and airport SWIM service endpoints.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Mitigated Threats Table -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+        <h3 class="text-xs font-bold uppercase font-mono text-white mb-3">Predicted Risk Reduction by Threat</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] font-mono uppercase text-slate-400 bg-slate-950">
+                <th class="py-2.5 px-3">Asset</th>
+                <th class="py-2.5 px-3">Attack Scenario</th>
+                <th class="py-2.5 px-3 text-center">Baseline Risk</th>
+                <th class="py-2.5 px-3 text-center">Simulated Risk</th>
+                <th class="py-2.5 px-3 text-center">Delta (Reduction)</th>
+              </tr>
+            </thead>
+            <tbody id="sim-results-table-body" class="divide-y divide-slate-800/40">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 6: ARCHITECTURE & ATTACK SURFACE TOPOLOGY -->
+    <!-- ======================================================== -->
+    <div id="tab-topology" class="tab-content-panel hidden space-y-6">
+      
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-base font-bold text-white font-mono uppercase">Civil Aviation Attack Surface & Critical Infrastructure Topology</h2>
+            <p class="text-xs text-slate-400">Interactive reproduction of Figure 1 (Air Navigation Infrastructure) & Figure 12 (SWIM Stakeholders)</p>
+          </div>
+          <span class="text-xs font-mono text-sky-400">CNS/ATM + Net-Centric Interoperability</span>
+        </div>
+
+        <!-- SVG Topology Canvas -->
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-x-auto">
+          <svg viewBox="0 0 960 520" class="w-full h-auto min-w-[750px] font-mono text-xs">
+            <!-- Background Grid Lines -->
+            <defs>
+              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5" stroke-opacity="0.5" />
+              </pattern>
+              <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#0284c7" stop-opacity="0.2"/>
+                <stop offset="100%" stop-color="#0284c7" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <rect width="960" height="520" fill="url(#grid)" />
+
+            <!-- SPACE LAYER (Top) -->
+            <rect x="40" y="20" width="880" height="70" rx="8" fill="#0f172a" stroke="#0284c7" stroke-width="1.5" />
+            <text x="60" y="45" fill="#38bdf8" font-weight="bold" font-size="12">SPACE LAYER (Satellite Infrastructure)</text>
+            
+            <!-- GNSS Satellites -->
+            <g transform="translate(180, 40)" class="cursor-pointer">
+              <rect x="-60" y="-10" width="120" height="45" rx="4" fill="#0369a1" stroke="#38bdf8" />
+              <text x="0" y="10" text-anchor="middle" fill="#ffffff" font-weight="bold" font-size="11">GNSS Constellation</text>
+              <text x="0" y="24" text-anchor="middle" fill="#93c5fd" font-size="9">GPS / GLONASS / Galileo</text>
+            </g>
+
+            <!-- SATCOM Satellites -->
+            <g transform="translate(480, 40)" class="cursor-pointer">
+              <rect x="-60" y="-10" width="120" height="45" rx="4" fill="#0369a1" stroke="#38bdf8" />
+              <text x="0" y="10" text-anchor="middle" fill="#ffffff" font-weight="bold" font-size="11">SATCOM Spacecraft</text>
+              <text x="0" y="24" text-anchor="middle" fill="#93c5fd" font-size="9">Inmarsat / Iridium</text>
+            </g>
+
+            <!-- Space-based ADS-B -->
+            <g transform="translate(760, 40)" class="cursor-pointer">
+              <rect x="-60" y="-10" width="120" height="45" rx="4" fill="#0369a1" stroke="#38bdf8" />
+              <text x="0" y="10" text-anchor="middle" fill="#ffffff" font-weight="bold" font-size="11">Space ADS-B LEO</text>
+              <text x="0" y="24" text-anchor="middle" fill="#93c5fd" font-size="9">Aireon 66 Constellation</text>
+            </g>
+
+            <!-- Signal Rays from Space -->
+            <path d="M 180 75 L 300 180" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4" />
+            <text x="210" y="140" fill="#f59e0b" font-size="9">L1/L2 (-160dBW)</text>
+
+            <path d="M 480 75 L 340 180" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4" />
+            <text x="420" y="140" fill="#38bdf8" font-size="9">SATCOM Data</text>
+
+            <path d="M 360 190 L 760 75" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4" />
+            <text x="600" y="140" fill="#ef4444" font-size="9">1090 MHz Uplink</text>
+
+            <!-- AIRBORNE SEGMENT (Middle) -->
+            <g transform="translate(320, 200)">
+              <rect x="-90" y="-30" width="180" height="65" rx="6" fill="#1e293b" stroke="#f43f5e" stroke-width="2" />
+              <text x="0" y="-10" text-anchor="middle" fill="#ffffff" font-weight="bold" font-size="13">AIRBORNE AIRCRAFT</text>
+              <text x="0" y="8" text-anchor="middle" fill="#fda4af" font-size="10">FMS / Cockpit Avionics</text>
+              <text x="0" y="22" text-anchor="middle" fill="#94a3b8" font-size="9">Transponder / VHF AM / ACARS</text>
+            </g>
+
+            <!-- Links to Ground Navigation -->
+            <path d="M 280 235 L 140 340" stroke="#10b981" stroke-width="1.5" />
+            <text x="160" y="290" fill="#10b981" font-size="9">ILS Guidance</text>
+
+            <path d="M 320 235 L 380 340" stroke="#38bdf8" stroke-width="1.5" />
+            <text x="360" y="290" fill="#38bdf8" font-size="9">VHF Voice / CPDLC</text>
+
+            <path d="M 360 235 L 600 340" stroke="#a855f7" stroke-width="1.5" />
+            <text x="490" y="290" fill="#a855f7" font-size="9">SSR / ADS-B 1090MHz</text>
+
+            <!-- GROUND CNS INFRASTRUCTURE (Lower Middle) -->
+            <!-- Ground Nav Aids -->
+            <g transform="translate(140, 360)">
+              <rect x="-70" y="-25" width="140" height="55" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="1.5" />
+              <text x="0" y="-5" text-anchor="middle" fill="#6ee7b7" font-weight="bold" font-size="11">Ground Nav Aids</text>
+              <text x="0" y="10" text-anchor="middle" fill="#cbd5e1" font-size="9">ILS / VOR / DME</text>
+              <text x="0" y="22" text-anchor="middle" fill="#94a3b8" font-size="8">Localizer & Glide Slope</text>
+            </g>
+
+            <!-- ATC Tower / ANSP -->
+            <g transform="translate(380, 360)">
+              <rect x="-80" y="-25" width="160" height="55" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5" />
+              <text x="0" y="-5" text-anchor="middle" fill="#7dd3fc" font-weight="bold" font-size="11">ATC Tower / ANSP</text>
+              <text x="0" y="10" text-anchor="middle" fill="#cbd5e1" font-size="9">VHF Base Station & VDL2</text>
+              <text x="0" y="22" text-anchor="middle" fill="#94a3b8" font-size="8">Controller Clearances</text>
+            </g>
+
+            <!-- Radar & Surveillance Ground Station -->
+            <g transform="translate(620, 360)">
+              <rect x="-80" y="-25" width="160" height="55" rx="6" fill="#0f172a" stroke="#a855f7" stroke-width="1.5" />
+              <text x="0" y="-5" text-anchor="middle" fill="#d8b4fe" font-weight="bold" font-size="11">Surveillance Ground</text>
+              <text x="0" y="10" text-anchor="middle" fill="#cbd5e1" font-size="9">PSR / SSR / MLAT / ADS-B</text>
+              <text x="0" y="22" text-anchor="middle" fill="#94a3b8" font-size="8">1030 MHz / 1090 MHz</text>
+            </g>
+
+            <!-- SWIM NET-CENTRIC BUS (Bottom) -->
+            <rect x="40" y="430" width="880" height="75" rx="8" fill="#111827" stroke="#6366f1" stroke-width="1.5" />
+            <text x="60" y="455" fill="#a5b4fc" font-weight="bold" font-size="12">SWIM ENTERPRISE IP BUS (Net-Centric Information Exchange - Fig. 12)</text>
+
+            <!-- SWIM Stakeholders -->
+            <g transform="translate(140, 480)">
+              <rect x="-45" y="-15" width="90" height="30" rx="4" fill="#312e81" stroke="#818cf8" />
+              <text x="0" y="4" text-anchor="middle" fill="#ffffff" font-size="10">Airports AOCC</text>
+            </g>
+            <g transform="translate(300, 480)">
+              <rect x="-45" y="-15" width="90" height="30" rx="4" fill="#312e81" stroke="#818cf8" />
+              <text x="0" y="4" text-anchor="middle" fill="#ffffff" font-size="10">Airline Ops (AOC)</text>
+            </g>
+            <g transform="translate(460, 480)">
+              <rect x="-45" y="-15" width="90" height="30" rx="4" fill="#312e81" stroke="#818cf8" />
+              <text x="0" y="4" text-anchor="middle" fill="#ffffff" font-size="10">ANSP / ATM Center</text>
+            </g>
+            <g transform="translate(620, 480)">
+              <rect x="-45" y="-15" width="90" height="30" rx="4" fill="#312e81" stroke="#818cf8" />
+              <text x="0" y="4" text-anchor="middle" fill="#ffffff" font-size="10">Meteorology (MET)</text>
+            </g>
+            <g transform="translate(780, 480)">
+              <rect x="-45" y="-15" width="90" height="30" rx="4" fill="#312e81" stroke="#818cf8" />
+              <text x="0" y="4" text-anchor="middle" fill="#ffffff" font-size="10">Military Defense</text>
+            </g>
+
+            <!-- Bus connectors from ground stations to SWIM -->
+            <path d="M 380 390 L 460 460" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="2" />
+            <path d="M 620 390 L 620 460" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="2" />
+          </svg>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div class="p-3 bg-slate-950 rounded border border-slate-800">
+            <span class="text-sky-400 font-bold uppercase font-mono">Wireless RF Attack Vectors</span>
+            <p class="text-slate-400 mt-1 leading-relaxed">Eavesdropping, high-power carrier jamming, and GPS/ADS-B spoofing act through free space without needing access to ground facilities.</p>
+          </div>
+          <div class="p-3 bg-slate-950 rounded border border-slate-800">
+            <span class="text-emerald-400 font-bold uppercase font-mono">Sensor Cross-Fusion Defense</span>
+            <p class="text-slate-400 mt-1 leading-relaxed">PSR provides uncooperative radar reflection to detect ghost ADS-B targets. AAIM and DME-DME cross-fix detect GNSS spoofing.</p>
+          </div>
+          <div class="p-3 bg-slate-950 rounded border border-slate-800">
+            <span class="text-purple-400 font-bold uppercase font-mono">Net-Centric SWIM Security</span>
+            <p class="text-slate-400 mt-1 leading-relaxed">Protected via private IP networks, Common PKI mutual certificates, and ICAO INNOVA/ACORNS trust frameworks.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- TAB 7: LITERATURE SURVEY BENCHMARK (Table 1) -->
+    <!-- ======================================================== -->
+    <div id="tab-benchmark" class="tab-content-panel hidden space-y-6">
+      
+      <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-base font-bold text-white font-mono uppercase">Comparison with Existing Aviation Security Surveys (Table 1)</h2>
+            <p class="text-xs text-slate-400">Systematic analysis showing why previous studies were incomplete compared to Elmarady & Rahouma (2021)</p>
+          </div>
+          <span class="text-xs font-mono text-sky-400">Literature Benchmark</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] font-mono uppercase text-slate-400 bg-slate-950">
+                <th class="py-3 px-4">Review Paper Reference</th>
+                <th class="py-3 px-4 text-center">Communication</th>
+                <th class="py-3 px-4 text-center">Navigation</th>
+                <th class="py-3 px-4 text-center">Surveillance</th>
+                <th class="py-3 px-4 text-center">SWIM</th>
+                <th class="py-3 px-4 text-center">Risk Assessment Formula</th>
+                <th class="py-3 px-4">Key Limitations & Scope Gap</th>
+              </tr>
+            </thead>
+            <tbody id="literature-table-body" class="divide-y divide-slate-800/40">
+              <!-- Dynamically populated by app.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-4 p-4 bg-sky-950/30 border border-sky-800/60 rounded-lg text-xs text-slate-300 leading-relaxed space-y-2">
+          <h4 class="font-bold text-sky-300 uppercase font-mono">Primary Scientific Contributions of the Authors</h4>
+          <p>
+            As highlighted in Section I (Page 3-4), previous surveys either addressed only isolated subsystems (e.g. only ADS-B in [16], only CPDLC/GPS in [21], only RF interference in [10]) or conducted generic perceptual opinion polls [19] without an algorithmic quantitative risk formula.
+          </p>
+          <p>
+            The proposed methodology fills this gap by delivering the <strong>first continuous, quantitative (r = L × I) and qualitative (R ∈ {Acceptable, Tolerable, Intolerable}) cybersecurity risk assessment framework</strong> encompassing all CNS/ATM technologies and net-centric SWIM.
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: THREAT DETAIL INSPECTOR -->
+  <!-- ======================================================== -->
+  <div id="threat-detail-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeThreatModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div id="threat-modal-content">
+        <!-- Rendered by app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs font-mono text-slate-500">
+    Civil Aviation Cybersecurity Risk Assessment System · Compliant with ICAO Security Risk Assessment Methodology & IEEE Access 2021
+  </footer>
+
+  <!-- SCRIPT INCLUDES -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>
