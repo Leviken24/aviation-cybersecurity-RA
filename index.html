@@ -207,65 +207,77 @@
           </div>
           <div>
             <div class="flex items-center space-x-2">
-              <h2 class="text-base font-bold text-white tracking-wide font-mono uppercase">Live Airspace Cyber-Attack Simulator & Predictor</h2>
-              <span class="px-2 py-0.5 text-[10px] font-mono font-bold bg-pink-950 text-pink-400 border border-pink-800 rounded">Dynamic Assessment</span>
+              <h2 class="text-base font-bold text-white tracking-wide font-mono uppercase">Tactical Airspace & Real-Time Threat Forecaster</h2>
+              <span id="sim-mode-badge" class="px-2 py-0.5 text-[10px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800 rounded">Live OpenSky ADS-B</span>
             </div>
-            <p class="text-xs text-slate-400">Continuous kinematic simulation, live attack injection, and predictive AI anomaly forecasting based on Algorithm 1</p>
+            <p class="text-xs text-slate-400">Tracking real-world commercial flights passing overhead & estimating live cybersecurity threats with Algorithm 1</p>
           </div>
         </div>
 
         <!-- Simulator Controls -->
-        <div class="flex items-center space-x-3 text-xs font-mono">
-          <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-950 border border-slate-800">
-            <i data-lucide="clock" class="w-3.5 h-3.5 text-sky-400"></i>
+        <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+          <!-- Feed Mode Switcher -->
+          <div class="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center space-x-1">
+            <button id="sim-feed-live-btn" onclick="airspaceSim.setFeedMode('live_adsb')" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-600 text-white shadow-sm border border-sky-400 flex items-center space-x-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span>
+              <span>Live Real Aircraft</span>
+            </button>
+            <button id="sim-feed-sandbox-btn" onclick="airspaceSim.setFeedMode('sandbox')" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-slate-900 text-slate-400 hover:text-white border border-slate-700 flex items-center space-x-1.5">
+              <i data-lucide="crosshair" class="w-3.5 h-3.5"></i>
+              <span>Tactical Sandbox</span>
+            </button>
+          </div>
+
+          <!-- Airspace Sector Zone Dropdown -->
+          <div id="sim-zone-selector-wrapper" class="flex items-center space-x-1.5 bg-slate-950 px-2.5 py-1.5 rounded-lg border border-slate-800">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-sky-400"></i>
+            <span class="text-[10px] uppercase font-mono text-slate-500 font-bold">Zone:</span>
+            <select id="sim-zone-selector" onchange="airspaceSim.setZone(this.value)" class="bg-transparent text-xs font-mono text-sky-300 font-bold focus:outline-none cursor-pointer">
+              <option value="london" class="bg-slate-900 text-slate-200">London Heathrow (EGLL)</option>
+              <option value="newyork" class="bg-slate-900 text-slate-200">New York JFK (KJFK)</option>
+              <option value="frankfurt" class="bg-slate-900 text-slate-200">Frankfurt (EDDF)</option>
+              <option value="dubai" class="bg-slate-900 text-slate-200">Dubai (OMDB)</option>
+              <option value="tokyo" class="bg-slate-900 text-slate-200">Tokyo Haneda (RJTT)</option>
+            </select>
+          </div>
+
+          <!-- Manual Poll Trigger -->
+          <button onclick="airspaceSim.fetchLiveSectorFlights()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200 transition-colors flex items-center space-x-1.5" title="Poll latest live transponder squitters">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-sky-400"></i>
+            <span id="sim-poll-label">Poll Feed</span>
+          </button>
+
+          <div class="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
             <span id="sim-clock-time" class="font-bold text-white">00:00 UTC</span>
           </div>
-
-          <button id="sim-play-pause-btn" onclick="airspaceSim.toggleRunning()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200 transition-colors flex items-center">
-            <i data-lucide="pause" class="w-4 h-4 mr-1 text-amber-400"></i> Pause
-          </button>
-
-          <div class="flex items-center space-x-1 bg-slate-950 p-1 rounded border border-slate-800">
-            <span class="text-[10px] text-slate-500 px-1">Speed:</span>
-            <button class="sim-speed-btn px-2 py-0.5 rounded text-[11px] bg-sky-600 text-white font-bold" data-speed="1" onclick="airspaceSim.setSpeed(1)">1x</button>
-            <button class="sim-speed-btn px-2 py-0.5 rounded text-[11px] bg-slate-900 text-slate-400 hover:text-white" data-speed="2" onclick="airspaceSim.setSpeed(2)">2x</button>
-            <button class="sim-speed-btn px-2 py-0.5 rounded text-[11px] bg-slate-900 text-slate-400 hover:text-white" data-speed="5" onclick="airspaceSim.setSpeed(5)">5x</button>
-          </div>
-
-          <button onclick="airspaceSim.clearAllAttacks()" class="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 rounded text-emerald-300 font-bold transition-colors flex items-center space-x-1">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-            <span>Reset Sector</span>
-          </button>
         </div>
       </div>
 
       <!-- Live Simulator Stats Header -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-lg">
-          <div class="text-[10px] font-mono uppercase text-slate-400">Active Injected Attacks</div>
-          <div id="sim-active-attacks-count" class="text-2xl font-bold font-mono text-pink-400 mt-1">0</div>
-          <div class="text-[10px] text-slate-500 font-mono mt-0.5">Red Team Operations</div>
+          <div class="text-[10px] font-mono uppercase text-slate-400">Real Aircraft Overhead</div>
+          <div id="sim-live-flights-count" class="text-2xl font-bold font-mono text-white mt-1">--</div>
+          <div class="text-[10px] text-slate-500 font-mono mt-0.5">Live ADS-B Ingestion (35 NM)</div>
         </div>
 
         <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-lg">
-          <div class="text-[10px] font-mono uppercase text-sky-400">Predicted Threat Anomalies</div>
-          <div id="sim-predictions-count" class="text-2xl font-bold font-mono text-sky-400 mt-1">0</div>
-          <div class="text-[10px] text-slate-500 font-mono mt-0.5">Blue Team Predictive AI</div>
+          <div class="text-[10px] font-mono uppercase text-red-400">Intolerable Risks (r ≥ 15)</div>
+          <div id="sim-live-intolerable-count" class="text-2xl font-bold font-mono text-red-500 mt-1">--</div>
+          <div class="text-[10px] text-red-400/80 font-mono mt-0.5">Final Approach / Anomalies</div>
         </div>
 
         <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-lg">
-          <div class="text-[10px] font-mono uppercase text-red-400">Live Intolerable Risks (r ≥ 15)</div>
-          <div id="sim-live-intolerable-count" class="text-2xl font-bold font-mono text-red-500 mt-1">0</div>
-          <div class="text-[10px] text-red-400/80 font-mono mt-0.5">Immediate Flight Action Required</div>
+          <div class="text-[10px] font-mono uppercase text-amber-400">Tolerable Risks (5 ≤ r &lt; 15)</div>
+          <div id="sim-live-tolerable-count" class="text-2xl font-bold font-mono text-amber-400 mt-1">--</div>
+          <div class="text-[10px] text-amber-400/80 font-mono mt-0.5">Terminal Area Operations</div>
         </div>
 
         <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-lg">
-          <div class="text-[10px] font-mono uppercase text-emerald-400">Surveillance Sensor Mode</div>
-          <div class="text-base font-bold font-mono text-emerald-400 mt-1.5 flex items-center">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse mr-2"></span>
-            ADS-B + SSR + MLAT
-          </div>
-          <div class="text-[10px] text-slate-500 font-mono mt-0.5">12 RPM Terminal Radar Sweep</div>
+          <div class="text-[10px] font-mono uppercase text-emerald-400">Acceptable Risks (r &lt; 5)</div>
+          <div id="sim-live-acceptable-count" class="text-2xl font-bold font-mono text-emerald-400 mt-1">--</div>
+          <div class="text-[10px] text-emerald-400/80 font-mono mt-0.5">En-Route Cruise Phase</div>
         </div>
       </div>
 
@@ -278,7 +290,7 @@
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center space-x-2">
                 <i data-lucide="scan" class="w-4 h-4 text-sky-400"></i>
-                <h3 class="text-xs font-bold uppercase font-mono text-white">TRACON Airspace Tactical Radar (35 NM Sector)</h3>
+                <h3 id="radar-sector-title" class="text-xs font-bold uppercase font-mono text-white">London TMA (EGLL / Heathrow) · 35 NM Sector · Live OpenSky ADS-B</h3>
               </div>
               <div class="text-[10px] font-mono text-slate-400 flex items-center space-x-3">
                 <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-400 mr-1"></span> Verified</span>

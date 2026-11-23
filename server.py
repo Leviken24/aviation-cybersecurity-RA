@@ -8,6 +8,7 @@ import os
 import json
 import urllib.parse
 from risk_engine import run_algorithm_1, calculate_numeric_risk, categorize_tolerability, convert_to_five_point_scale, PAPER_THREATS_DATASET, CyberThreat
+from live_tracker import get_live_sector_flights, SECTOR_ZONES
 
 PORT = 8088
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +26,22 @@ class AviationRiskHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(summary, indent=2).encode("utf-8"))
+        elif parsed.path == "/api/live-flights":
+            query = urllib.parse.parse_qs(parsed.query)
+            zone = query.get("zone", ["london"])[0]
+            flights_data = get_live_sector_flights(zone)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(json.dumps(flights_data, indent=2).encode("utf-8"))
+        elif parsed.path == "/api/zones":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(SECTOR_ZONES, indent=2).encode("utf-8"))
         elif parsed.path == "/api/health":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

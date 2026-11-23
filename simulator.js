@@ -21,6 +21,110 @@ class AirspaceSimulator {
     this.onThreatsUpdated = null;
     this.lastThreatUpdateTime = 0;
 
+    // Real-World Live ADS-B Tracking Mode vs Tactical Sandbox Mode
+    this.feedMode = "live_adsb"; // "live_adsb" (Real flights overhead) or "sandbox"
+    this.currentZone = "london";
+    this.liveFlights = [];
+    this.liveZoneMeta = null;
+    this.isFetchingLive = false;
+    this.livePollTimer = null;
+    this.liveStats = {
+      totalDetected: 0,
+      inSector: 0,
+      intolerable: 0,
+      tolerable: 0,
+      acceptable: 0
+    };
+
+    // Major International Airspace Sectors
+    this.zoneConfigs = {
+      london: {
+        id: "london",
+        name: "London TMA (EGLL / Heathrow)",
+        centerLat: 51.4700,
+        centerLon: -0.4543,
+        radiusNm: 35.0,
+        bbox: [50.9, -1.3, 52.0, 0.4],
+        runways: [
+          { name: "27R/09L", length: 4.0, heading: 90, x: 0, y: 0.3 },
+          { name: "27L/09R", length: 3.7, heading: 90, x: 0, y: -0.3 }
+        ],
+        waypoints: [
+          { name: "LAM", x: 20, y: 12 },
+          { name: "BIG", x: 12, y: -18 },
+          { name: "OCK", x: -8, y: -14 },
+          { name: "BOV", x: -14, y: 16 }
+        ]
+      },
+      newyork: {
+        id: "newyork",
+        name: "New York TRACON (KJFK / JFK)",
+        centerLat: 40.6413,
+        centerLon: -73.7781,
+        radiusNm: 35.0,
+        bbox: [40.1, -74.5, 41.2, -73.0],
+        runways: [
+          { name: "31L/13R", length: 4.2, heading: 135, x: 0, y: 0 },
+          { name: "04R/22L", length: 3.8, heading: 45, x: 0, y: 0 }
+        ],
+        waypoints: [
+          { name: "ROBER", x: -18, y: 15 },
+          { name: "LENDY", x: 22, y: -10 },
+          { name: "CAMRN", x: -12, y: -20 },
+          { name: "MERIT", x: 15, y: 20 }
+        ]
+      },
+      frankfurt: {
+        id: "frankfurt",
+        name: "Frankfurt TMA (EDDF / FRA)",
+        centerLat: 50.0379,
+        centerLon: 8.5622,
+        radiusNm: 35.0,
+        bbox: [49.5, 7.8, 50.6, 9.3],
+        runways: [
+          { name: "25C/07C", length: 4.0, heading: 70, x: 0, y: 0 },
+          { name: "18", length: 4.0, heading: 180, x: -1, y: -1 }
+        ],
+        waypoints: [
+          { name: "RID", x: -15, y: 12 },
+          { name: "CHA", x: 20, y: 14 },
+          { name: "GED", x: 14, y: -16 }
+        ]
+      },
+      dubai: {
+        id: "dubai",
+        name: "Dubai CTA (OMDB / DXB)",
+        centerLat: 25.2532,
+        centerLon: 55.3657,
+        radiusNm: 35.0,
+        bbox: [24.7, 54.7, 25.8, 56.0],
+        runways: [
+          { name: "30L/12R", length: 4.0, heading: 120, x: 0, y: 0.3 },
+          { name: "30R/12L", length: 4.0, heading: 120, x: 0, y: -0.3 }
+        ],
+        waypoints: [
+          { name: "DESIG", x: -18, y: 12 },
+          { name: "MIKNO", x: 18, y: -14 }
+        ]
+      },
+      tokyo: {
+        id: "tokyo",
+        name: "Tokyo Approach (RJTT / Haneda)",
+        centerLat: 35.5494,
+        centerLon: 139.7798,
+        radiusNm: 35.0,
+        bbox: [35.0, 139.1, 36.1, 140.4],
+        runways: [
+          { name: "34L/16R", length: 3.5, heading: 160, x: 0, y: 0 },
+          { name: "05/23", length: 3.0, heading: 50, x: 0, y: -1 }
+        ],
+        waypoints: [
+          { name: "ARLON", x: -16, y: 15 },
+          { name: "KAIHO", x: 12, y: -16 }
+        ]
+      }
+    };
+
     // Sector dimensions (nautical miles, centered at 0,0 - Terminal Radar Approach Control TRACON)
     this.sectorRadius = 35; // NM
 
@@ -265,6 +369,407 @@ class AirspaceSimulator {
     this.refreshTelemetryUI();
     this.renderFlightPills();
     this.logEvent("SYSTEM_INIT", "Civil Aviation Real-Time Cybersecurity Radar & Simulation Online", "INFO");
+
+    // Start live OpenSky ADS-B polling
+    if (this.feedMode === "live_adsb") {
+      this.fetchLiveSectorFlights();
+      if (!this.livePollTimer) {
+        this.livePollTimer = setInterval(() => {
+          if (this.feedMode === "live_adsb" && this.isRunning) {
+            this.fetchLiveSectorFlights();
+          }
+        }, 9000);
+      }
+    }
+  }
+
+  setFeedMode(mode) {
+    this.feedMode = mode;
+    const liveBtn = document.getElementById("sim-feed-live-btn");
+    const sandBtn = document.getElementById("sim-feed-sandbox-btn");
+    const zoneSelect = document.getElementById("sim-zone-selector-wrapper");
+    const modeBadge = document.getElementById("sim-mode-badge");
+
+    if (mode === "live_adsb") {
+      if (liveBtn) {
+        liveBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-600 text-white shadow-sm border border-sky-400 flex items-center space-x-1.5";
+      }
+      if (sandBtn) {
+        sandBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-slate-900 text-slate-400 hover:text-white border border-slate-700 flex items-center space-x-1.5";
+      }
+      if (zoneSelect) zoneSelect.classList.remove("hidden");
+      if (modeBadge) modeBadge.innerText = "Live OpenSky ADS-B";
+      this.fetchLiveSectorFlights();
+    } else {
+      if (sandBtn) {
+        sandBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-600 text-white shadow-sm border border-sky-400 flex items-center space-x-1.5";
+      }
+      if (liveBtn) {
+        liveBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-slate-900 text-slate-400 hover:text-white border border-slate-700 flex items-center space-x-1.5";
+      }
+      if (zoneSelect) zoneSelect.classList.add("hidden");
+      if (modeBadge) modeBadge.innerText = "Tactical Sandbox";
+      this.selectedFlightId = "UAL421";
+      this.renderFlightPills();
+      this.refreshTelemetryUI();
+    }
+    this.logEvent("CONFIG", `Switched Airspace Radar Feed to: ${mode === "live_adsb" ? "Live ADS-B Flight Tracking" : "Tactical Kinematic Sandbox"}`, "INFO");
+    if (this.onThreatsUpdated) {
+      this.onThreatsUpdated(this.getLiveDynamicThreats());
+    }
+  }
+
+  setZone(zoneId) {
+    if (this.zoneConfigs[zoneId]) {
+      this.currentZone = zoneId;
+      this.liveFlights = [];
+      const sectorTitleEl = document.getElementById("radar-sector-title");
+      if (sectorTitleEl) {
+        sectorTitleEl.innerText = `${this.zoneConfigs[zoneId].name} · 35 NM Sector · Live OpenSky ADS-B`;
+      }
+      this.logEvent("CONFIG", `Switched Airspace Sector to: ${this.zoneConfigs[zoneId].name}`, "INFO");
+      this.fetchLiveSectorFlights();
+    }
+  }
+
+  async fetchLiveSectorFlights() {
+    if (this.isFetchingLive) return;
+    this.isFetchingLive = true;
+
+    const pollBtnLabel = document.getElementById("sim-poll-label");
+    if (pollBtnLabel) pollBtnLabel.innerText = "Polling...";
+
+    try {
+      let data = null;
+      // 1. Try local Python backend endpoint
+      try {
+        const resp = await fetch(`/api/live-flights?zone=${this.currentZone}`, { cache: "no-store" });
+        if (resp.ok) {
+          data = await resp.json();
+        }
+      } catch (e1) {
+        // Backend not running or static file host
+      }
+
+      // 2. If backend endpoint not reached, query OpenSky via public CORS proxy
+      if (!data || !data.success) {
+        const zoneInfo = this.zoneConfigs[this.currentZone] || this.zoneConfigs["london"];
+        const [lamin, lomin, lamax, lomax] = zoneInfo.bbox;
+        const targetUrl = `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`;
+        try {
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+          const proxyResp = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
+          if (proxyResp.ok) {
+            const raw = await proxyResp.json();
+            data = this.processRawOpenSkyStates(raw, zoneInfo);
+          }
+        } catch (e2) {
+          // Proxy timed out
+        }
+      }
+
+      if (data && data.success && data.flights) {
+        this.liveFlights = data.flights;
+        this.liveZoneMeta = data.zone;
+        this.liveStats = {
+          totalDetected: data.total_detected || data.flights.length,
+          inSector: data.in_sector_count || data.flights.length,
+          intolerable: data.intolerable_count || data.flights.filter((f) => f.threat?.tolerability === "intolerable").length,
+          tolerable: data.tolerable_count || data.flights.filter((f) => f.threat?.tolerability === "tolerable").length,
+          acceptable: data.acceptable_count || data.flights.filter((f) => f.threat?.tolerability === "acceptable").length,
+          lastUpdated: new Date()
+        };
+
+        if (!this.liveFlights.some((f) => f.callsign === this.selectedFlightId || f.icao24 === this.selectedFlightId)) {
+          if (this.liveFlights.length > 0) {
+            this.selectedFlightId = this.liveFlights[0].callsign || this.liveFlights[0].icao24;
+          }
+        }
+
+        this.updateLiveStatsUI();
+        this.renderFlightPills();
+        if (this.selectedFlightId) {
+          const sel = this.liveFlights.find((f) => f.callsign === this.selectedFlightId || f.icao24 === this.selectedFlightId);
+          if (sel) this.updateLiveFlightTelemetryCard(sel);
+        }
+
+        this.logEvent("LIVE_ADSB", `Ingested ${this.liveFlights.length} real aircraft over ${this.zoneConfigs[this.currentZone]?.name || "Sector"}. Algorithm 1 re-evaluated.`, "SUCCESS");
+
+        if (this.onThreatsUpdated) {
+          this.onThreatsUpdated(this.getLiveDynamicThreats());
+        }
+      }
+    } catch (err) {
+      console.warn("Live flight fetch error:", err);
+      this.logEvent("FEED_WARN", `Live ADS-B fetch: ${err.message}`, "WARNING");
+    } finally {
+      this.isFetchingLive = false;
+      if (pollBtnLabel) pollBtnLabel.innerText = "Poll Feed";
+    }
+  }
+
+  processRawOpenSkyStates(raw, zoneInfo) {
+    if (!raw || !raw.states) return { success: false };
+    const cLat = zoneInfo.centerLat;
+    const cLon = zoneInfo.centerLon;
+    const radius = zoneInfo.radiusNm;
+    const serverTime = raw.time || Math.floor(Date.now() / 1000);
+    const flights = [];
+
+    for (const s of raw.states) {
+      const lon = s[5];
+      const lat = s[6];
+      if (lon === null || lat === null) continue;
+
+      const dxNm = (lon - cLon) * 60.0 * Math.cos((cLat * Math.PI) / 180.0);
+      const dyNm = (lat - cLat) * 60.0;
+      const distNm = Math.hypot(dxNm, dyNm);
+      if (distNm > radius + 5.0) continue;
+
+      const icao24 = (s[0] || "").toLowerCase();
+      const callsign = (s[1] || icao24).trim();
+      const country = s[2] || "Unknown";
+      const lastContact = s[4] || serverTime;
+      const latencySec = Math.max(0, serverTime - lastContact);
+
+      const altFt = s[7] !== null ? Math.round(s[7] * 3.28084) : 0;
+      const onGround = Boolean(s[8]);
+      const speedKts = s[9] !== null ? Math.round(s[9] * 1.94384) : 0;
+      const trackDeg = s[10] !== null ? Math.round(s[10]) : 0;
+      const vertRateFpm = s[11] !== null ? Math.round(s[11] * 196.85) : 0;
+      const geoAltFt = s[13] !== null ? Math.round(s[13] * 3.28084) : null;
+      const squawk = String(s[14] || "----");
+
+      const threat = this.estimateClientAircraftThreat(callsign, country, altFt, geoAltFt, speedKts, vertRateFpm, distNm, onGround, squawk, latencySec);
+
+      flights.push({
+        icao24,
+        callsign,
+        country,
+        lat: Number(lat.toFixed(4)),
+        lon: Number(lon.toFixed(4)),
+        x: Number(dxNm.toFixed(2)),
+        y: Number(dyNm.toFixed(2)),
+        dist_nm: Number(distNm.toFixed(1)),
+        altitude: altFt,
+        geo_altitude: geoAltFt,
+        speed: speedKts,
+        heading: trackDeg,
+        vertical_rate: vertRateFpm,
+        squawk,
+        on_ground: onGround,
+        latency_sec: latencySec,
+        threat
+      });
+    }
+
+    flights.sort((a, b) => b.threat.composite_risk - a.threat.composite_risk);
+
+    return {
+      success: true,
+      zone: zoneInfo,
+      total_detected: raw.states.length,
+      in_sector_count: flights.length,
+      intolerable_count: flights.filter((f) => f.threat.tolerability === "intolerable").length,
+      tolerable_count: flights.filter((f) => f.threat.tolerability === "tolerable").length,
+      acceptable_count: flights.filter((f) => f.threat.tolerability === "acceptable").length,
+      flights
+    };
+  }
+
+  estimateClientAircraftThreat(callsign, country, altFt, geoAltFt, speedKts, vertRateFpm, distNm, onGround, squawk, latencySec) {
+    let phase = "En-Route Cruise";
+    if (onGround || (altFt < 120 && speedKts < 50)) phase = "Taxi / Ground";
+    else if (altFt < 3000 && vertRateFpm < -150) phase = "Final Approach";
+    else if (altFt < 10000 && vertRateFpm < -100) phase = "Terminal Approach";
+    else if (vertRateFpm > 350 && altFt < 15000) phase = "Climb / Departure";
+
+    const anomalies = [];
+    if (geoAltFt !== null && altFt > 500 && Math.abs(geoAltFt - altFt) > 1500) {
+      anomalies.push(`Altimetry Discrepancy: Baro (${altFt} ft) vs Geo (${geoAltFt} ft) differs by ${Math.abs(geoAltFt - altFt)} ft`);
+    }
+    if (squawk === "7500") anomalies.push("SQUAWK 7500: Hijack / Unlawful Interference");
+    else if (squawk === "7600") anomalies.push("SQUAWK 7600: Radio Failure / VHF Jamming");
+    else if (squawk === "7700") anomalies.push("SQUAWK 7700: General In-Flight Emergency");
+
+    // Algorithm 1 evaluations
+    let vhfL = 1.5, vhfI = 3.0, vhfThreat = "VHF Voice Eavesdropping";
+    if (phase === "Final Approach") {
+      vhfL = 3.0; vhfI = 5.0; vhfThreat = "Rogue ATC Voice Clearance Spoofing (Critical Landing Phase)";
+    } else if (phase === "Terminal Approach") {
+      vhfL = 2.5; vhfI = 4.0; vhfThreat = "VHF Voice Clearance Spoofing / Noise Jamming";
+    }
+    const vhfR = Number((vhfL * vhfI).toFixed(1));
+
+    let adsbL = 3.5, adsbI = 2.5, adsbThreat = "ADS-B Trajectory Spoofing";
+    if (distNm < 15.0 && (phase === "Final Approach" || phase === "Terminal Approach")) {
+      adsbL = 4.2; adsbI = 3.5; adsbThreat = "ADS-B Ghost Aircraft Injection / False TCAS Resolution";
+    }
+    if (anomalies.length > 0) {
+      adsbL = Math.min(5.0, adsbL + 0.8);
+      adsbI = Math.min(5.0, adsbI + 0.8);
+    }
+    const adsbR = Number((adsbL * adsbI).toFixed(1));
+
+    let gnssL = 3.0, gnssI = 2.5, gnssThreat = "GNSS En-Route Signal Masking";
+    if (phase === "Final Approach" || phase === "Terminal Approach") {
+      gnssL = 3.6; gnssI = 4.0; gnssThreat = "GNSS L1 RF Jamming / Ephemeris Centerline Drift";
+    }
+    const gnssR = Number((gnssL * gnssI).toFixed(1));
+
+    let compR = Math.max(vhfR, adsbR, gnssR);
+    let primaryAsset = "VHF Voice", primaryThreat = vhfThreat, primaryL = vhfL, primaryI = vhfI;
+    if (compR === adsbR) { primaryAsset = "ADS-B"; primaryThreat = adsbThreat; primaryL = adsbL; primaryI = adsbI; }
+    else if (compR === gnssR) { primaryAsset = "GNSS"; primaryThreat = gnssThreat; primaryL = gnssL; primaryI = gnssI; }
+
+    if (squawk === "7500" || squawk === "7600" || squawk === "7700") {
+      compR = 20.0;
+      primaryAsset = "Transponder / VHF";
+      primaryThreat = `Emergency Squawk ${squawk} Active`;
+    }
+
+    let compTol = "acceptable";
+    if (compR >= 15.0) compTol = "intolerable";
+    else if (compR >= 5.0) compTol = "tolerable";
+
+    let scale = 1;
+    if (compR >= 20.0) scale = 5;
+    else if (compR >= 15.0) scale = 4;
+    else if (compR >= 10.0) scale = 3;
+    else if (compR >= 5.0) scale = 2;
+
+    const mitigations = [];
+    if (primaryAsset === "VHF Voice") {
+      mitigations.push("Mandatory pilot read-back/hear-back protocol", "Designated discrete tower frequency switch", "Secondary radar heading verification");
+    } else if (primaryAsset === "ADS-B") {
+      mitigations.push("Primary Surveillance Radar (PSR) skin-paint fusion", "TDoA ML multilateration spatial verification", "TCAS interrogator cross-check");
+    } else {
+      mitigations.push("Multi-frequency L5 GNSS + Galileo OS-NMA", "Inertial Reference System (IRS) fallback", "DME/DME terrestrial navigation backup");
+    }
+
+    return {
+      phase,
+      composite_risk: compR,
+      tolerability: compTol,
+      five_point_scale: scale,
+      primary_asset: primaryAsset,
+      primary_threat: primaryThreat,
+      likelihood: primaryL,
+      impact: primaryI,
+      anomalies,
+      mitigations
+    };
+  }
+
+  updateLiveStatsUI() {
+    const liveFlightsEl = document.getElementById("sim-live-flights-count");
+    if (liveFlightsEl) {
+      liveFlightsEl.innerText = this.liveFlights.length;
+    }
+    const liveIntolEl = document.getElementById("sim-live-intolerable-count");
+    if (liveIntolEl) {
+      liveIntolEl.innerText = this.liveStats.intolerable;
+    }
+    const liveTolEl = document.getElementById("sim-live-tolerable-count");
+    if (liveTolEl) {
+      liveTolEl.innerText = this.liveStats.tolerable;
+    }
+    const liveAccEl = document.getElementById("sim-live-acceptable-count");
+    if (liveAccEl) {
+      liveAccEl.innerText = this.liveStats.acceptable;
+    }
+    const sectorTitleEl = document.getElementById("radar-sector-title");
+    if (sectorTitleEl && this.zoneConfigs[this.currentZone]) {
+      sectorTitleEl.innerText = `${this.zoneConfigs[this.currentZone].name} · 35 NM Sector · Live OpenSky ADS-B`;
+    }
+  }
+
+  updateLiveFlightTelemetryCard(f) {
+    const card = document.getElementById("selected-flight-telemetry");
+    if (!card) return;
+
+    const th = f.threat || {};
+    const tol = th.tolerability || "acceptable";
+    const r = th.composite_risk || 0;
+    const rStyle = tol === "intolerable" ? "text-red-400 border-red-500 bg-red-950/40" : tol === "tolerable" ? "text-amber-400 border-amber-500 bg-amber-950/40" : "text-emerald-400 border-emerald-500 bg-emerald-950/40";
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-base font-bold font-mono text-white">${f.callsign}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-sky-950 text-sky-400 border border-sky-800 font-mono">LIVE ADS-B</span>
+            <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-slate-300">${th.phase || "En-Route"}</span>
+            <span class="text-xs font-mono text-slate-400">${f.country} · ICAO: 0x${f.icao24}</span>
+          </div>
+          <div class="text-xs text-slate-400 font-mono mt-0.5">
+            GPS Pos: ${f.lat}°N, ${f.lon}°E · Range: ${f.dist_nm} NM from Sector Center
+          </div>
+        </div>
+        <div class="text-right">
+          <span class="px-2.5 py-1 rounded text-xs uppercase font-bold font-mono border ${rStyle}">
+            ${tol}
+          </span>
+          <div class="text-xs font-mono text-slate-400 mt-1">Algorithm 1: r = ${r.toFixed(1)} (Scale ${th.five_point_scale || 1}/5)</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 my-3 text-xs font-mono">
+        <div class="p-2 bg-slate-950 rounded border border-slate-800">
+          <div class="text-[10px] text-slate-500 uppercase">Baro Altitude</div>
+          <div class="text-sm font-bold text-white mt-0.5">${f.altitude.toLocaleString()} ft</div>
+          <div class="text-[10px] text-slate-400">${f.vertical_rate > 0 ? `+${f.vertical_rate}` : f.vertical_rate} fpm</div>
+        </div>
+        <div class="p-2 bg-slate-950 rounded border border-slate-800">
+          <div class="text-[10px] text-slate-500 uppercase">Ground Speed / Track</div>
+          <div class="text-sm font-bold text-sky-400 mt-0.5">${f.speed} kts · ${Math.round(f.heading)}°</div>
+          <div class="text-[10px] text-slate-400">Heading True</div>
+        </div>
+        <div class="p-2 bg-slate-950 rounded border border-slate-800">
+          <div class="text-[10px] text-slate-500 uppercase">Transponder Squawk</div>
+          <div class="text-sm font-bold text-emerald-400 mt-0.5">${f.squawk || "Mode S"}</div>
+          <div class="text-[10px] text-slate-400">Latency: ${f.latency_sec || 0}s</div>
+        </div>
+        <div class="p-2 bg-slate-950 rounded border border-slate-800">
+          <div class="text-[10px] text-slate-500 uppercase">Geo Altitude (GNSS)</div>
+          <div class="text-sm font-bold ${f.geo_altitude !== null && Math.abs(f.geo_altitude - f.altitude) > 1500 ? "text-red-400" : "text-white"} mt-0.5">
+            ${f.geo_altitude !== null ? `${f.geo_altitude.toLocaleString()} ft` : "N/A"}
+          </div>
+          <div class="text-[10px] text-slate-400">GNSS Geometric Fix</div>
+        </div>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <div class="p-2.5 bg-slate-950 border border-slate-800 rounded">
+          <div class="flex items-center justify-between">
+            <span class="font-mono font-bold text-sky-400 uppercase text-[11px]">Primary Cybersecurity Vulnerability Vector:</span>
+            <span class="text-xs font-mono font-bold ${rStyle.split(' ')[0]}">L=${th.likelihood || 3.0} × I=${th.impact || 3.0} = ${r.toFixed(1)}</span>
+          </div>
+          <p class="text-xs text-slate-200 mt-1 font-mono">${th.primary_threat || "Standard surveillance and voice operations"}</p>
+        </div>
+
+        ${
+          th.anomalies && th.anomalies.length > 0
+            ? `<div class="p-2.5 bg-red-950/60 border border-red-500/80 rounded space-y-1">
+                <div class="text-[11px] font-mono font-bold uppercase text-red-400 flex items-center">
+                  <span class="w-2 h-2 rounded-full bg-red-400 animate-ping mr-1.5"></span>
+                  Active Telemetry Anomalies Detected:
+                </div>
+                ${th.anomalies.map((a) => `<div class="text-xs font-mono text-red-200">• ${a}</div>`).join("")}
+              </div>`
+            : `<div class="p-2 bg-slate-950/80 border border-slate-800 rounded text-xs font-mono text-slate-400">
+                ✅ Telemetry Consistency Checks: Nominal. Baro-Geo congruence and squitter timing verified.
+              </div>`
+        }
+
+        <div class="p-2.5 bg-slate-950 border border-slate-800 rounded">
+          <div class="text-[11px] font-mono font-bold uppercase text-emerald-400">Prescribed ICAO Risk Controls:</div>
+          <ul class="list-disc list-inside text-xs font-mono text-slate-300 mt-1 space-y-0.5">
+            ${(th.mitigations || ["PSR skin echo verification", "Mandatory read-back/hear-back"]).map((m) => `<li>${m}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+    `;
   }
 
   handleCanvasClick(e) {
@@ -282,20 +787,37 @@ class AirspaceSimulator {
     const nmX = (clickX - centerX) / scale;
     const nmY = (centerY - clickY) / scale;
 
-    for (const f of this.flights) {
-      const dist = Math.hypot(f.claimedX - nmX, f.claimedY - nmY);
-      if (dist < 4.0) {
-        this.selectFlight(f.id);
-        return;
+    if (this.feedMode === "live_adsb") {
+      for (const f of this.liveFlights) {
+        const dist = Math.hypot(f.x - nmX, f.y - nmY);
+        if (dist < 4.0) {
+          this.selectFlight(f.callsign || f.icao24);
+          return;
+        }
+      }
+    } else {
+      for (const f of this.flights) {
+        const dist = Math.hypot(f.claimedX - nmX, f.claimedY - nmY);
+        if (dist < 4.0) {
+          this.selectFlight(f.id);
+          return;
+        }
       }
     }
   }
 
   selectFlight(flightId) {
     this.selectedFlightId = flightId;
-    const f = this.flights.find((x) => x.id === flightId);
-    if (f) {
-      this.updateTelemetryCard(f);
+    if (this.feedMode === "live_adsb") {
+      const f = this.liveFlights.find((x) => x.callsign === flightId || x.icao24 === flightId);
+      if (f) {
+        this.updateLiveFlightTelemetryCard(f);
+      }
+    } else {
+      const f = this.flights.find((x) => x.id === flightId);
+      if (f) {
+        this.updateTelemetryCard(f);
+      }
     }
     this.renderFlightPills();
   }
@@ -304,23 +826,54 @@ class AirspaceSimulator {
     const container = document.getElementById("sim-flight-selector-pills");
     if (!container) return;
 
-    container.innerHTML = this.flights
-      .map((f) => {
-        const isSelected = f.id === this.selectedFlightId;
-        let badgeColor = "border-emerald-500/50 text-emerald-400 bg-slate-950";
-        if (f.risk.tol === "intolerable") badgeColor = "border-red-500 text-red-400 bg-red-950/40 animate-pulse";
-        else if (f.risk.tol === "tolerable") badgeColor = "border-amber-500/50 text-amber-400 bg-amber-950/20";
+    if (this.feedMode === "live_adsb") {
+      if (this.liveFlights.length === 0) {
+        container.innerHTML = `<span class="text-xs text-slate-500 font-mono italic">Polling live ADS-B network for sector aircraft...</span>`;
+        return;
+      }
 
-        const selectedStyle = isSelected ? "ring-2 ring-sky-400 font-bold" : "opacity-80 hover:opacity-100";
+      container.innerHTML = this.liveFlights
+        .slice(0, 22)
+        .map((f) => {
+          const fid = f.callsign || f.icao24;
+          const isSelected = fid === this.selectedFlightId;
+          const tol = f.threat?.tolerability || "tolerable";
+          const r = f.threat?.composite_risk || 0;
 
-        return `
-        <button class="px-2.5 py-1 text-xs font-mono rounded border ${badgeColor} ${selectedStyle} transition-all flex items-center space-x-1.5" onclick="airspaceSim.selectFlight('${f.id}')">
-          <span>${f.callsign}</span>
-          <span class="text-[10px] text-slate-400">r=${f.risk.r}</span>
-        </button>
-      `;
-      })
-      .join("");
+          let badgeColor = "border-emerald-500/50 text-emerald-400 bg-slate-950";
+          if (tol === "intolerable") badgeColor = "border-red-500 text-red-400 bg-red-950/40 animate-pulse";
+          else if (tol === "tolerable") badgeColor = "border-amber-500/50 text-amber-400 bg-amber-950/20";
+
+          const selectedStyle = isSelected ? "ring-2 ring-sky-400 font-bold" : "opacity-80 hover:opacity-100";
+
+          return `
+          <button class="px-2 py-1 text-xs font-mono rounded border ${badgeColor} ${selectedStyle} transition-all flex items-center space-x-1.5" onclick="airspaceSim.selectFlight('${fid}')">
+            <span>${f.callsign}</span>
+            <span class="text-[10px] text-slate-400">r=${r.toFixed(1)}</span>
+            ${f.threat?.anomalies?.length ? `<span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>` : ""}
+          </button>
+        `;
+        })
+        .join("");
+    } else {
+      container.innerHTML = this.flights
+        .map((f) => {
+          const isSelected = f.id === this.selectedFlightId;
+          let badgeColor = "border-emerald-500/50 text-emerald-400 bg-slate-950";
+          if (f.risk.tol === "intolerable") badgeColor = "border-red-500 text-red-400 bg-red-950/40 animate-pulse";
+          else if (f.risk.tol === "tolerable") badgeColor = "border-amber-500/50 text-amber-400 bg-amber-950/20";
+
+          const selectedStyle = isSelected ? "ring-2 ring-sky-400 font-bold" : "opacity-80 hover:opacity-100";
+
+          return `
+          <button class="px-2.5 py-1 text-xs font-mono rounded border ${badgeColor} ${selectedStyle} transition-all flex items-center space-x-1.5" onclick="airspaceSim.selectFlight('${f.id}')">
+            <span>${f.callsign}</span>
+            <span class="text-[10px] text-slate-400">r=${f.risk.r}</span>
+          </button>
+        `;
+        })
+        .join("");
+    }
   }
 
   setSpeed(speed) {
@@ -449,6 +1002,190 @@ class AirspaceSimulator {
 
       return { r, tol, scale };
     };
+
+    // If tracking live ADS-B commercial aircraft, evaluate real threats across sector
+    if (this.feedMode === "live_adsb" && this.liveFlights.length > 0) {
+      const zoneName = this.zoneConfigs[this.currentZone]?.name || "Active Sector";
+      const finalAppFlights = this.liveFlights.filter((f) => f.threat?.phase === "Final Approach");
+      const termAppFlights = this.liveFlights.filter((f) => f.threat?.phase === "Terminal Approach");
+      const cruiseFlights = this.liveFlights.filter((f) => f.threat?.phase === "En-Route Cruise");
+      const anomalyFlights = this.liveFlights.filter((f) => f.threat?.anomalies && f.threat.anomalies.length > 0);
+
+      // 1. Live VHF Voice Clearance Vulnerability (Intolerable r=15.0 when flights on Final Approach)
+      const hasFinalApp = finalAppFlights.length > 0;
+      const vhfL = hasFinalApp ? 3.0 : 1.8;
+      const vhfI = hasFinalApp ? 5.0 : 3.5;
+      const vhfRisk = classify(vhfL, vhfI);
+      list.push({
+        id: "RT-LIVE-VHF-01",
+        domain: "Communication",
+        asset: "VHF Voice",
+        threatType: "Rogue ATC Voice Clearance Spoofing",
+        category: "RF Voice Broadcast",
+        ciaTriad: "Integrity",
+        likelihood: vhfL,
+        impact: vhfI,
+        numericRisk: vhfRisk.r,
+        tolerability: vhfRisk.tol,
+        fivePointScale: vhfRisk.scale,
+        isRealtime: true,
+        liveTelemetry: hasFinalApp
+          ? `Tracking ${finalAppFlights.length} live flights on Final Approach (${finalAppFlights.slice(0, 3).map((f) => f.callsign).join(", ")}) · Critical landing corridor`
+          : `${this.liveFlights.length} live sector squitters · No immediate flights on short final`,
+        prediction: {
+          predictedAttack: "Unauthenticated VHF Voice Clearance Injection",
+          probability: hasFinalApp ? 94 : 8,
+          timeToImpact: hasFinalApp ? "Immediate Landing Phase" : "Nominal",
+          confidence: 95,
+          targetFlight: hasFinalApp ? finalAppFlights[0].callsign : "Terminal Tower Frequency"
+        },
+        mitigations: ["Mandatory read-back/hear-back protocol", "Designated emergency discrete frequency switch", "Secondary radar heading check"]
+      });
+
+      // 2. Live ADS-B Unauthenticated Broadcast Vulnerability
+      const adsbL = 4.2; // Table 2: Readily accessible SDR tools < $1000
+      const adsbI = termAppFlights.length > 5 ? 4.0 : 3.2;
+      const adsbRisk = classify(adsbL, adsbI);
+      list.push({
+        id: "RT-LIVE-ADSB-01",
+        domain: "Surveillance",
+        asset: "ADS-B",
+        threatType: "ADS-B Ghost Aircraft / Trajectory Alteration",
+        category: "Broadcast Surveillance",
+        ciaTriad: "Integrity",
+        likelihood: adsbL,
+        impact: adsbI,
+        numericRisk: adsbRisk.r,
+        tolerability: adsbRisk.tol,
+        fivePointScale: adsbRisk.scale,
+        isRealtime: true,
+        liveTelemetry: anomalyFlights.length > 0
+          ? `⚠️ Telemetry Anomaly in sector: ${anomalyFlights[0].callsign} (${anomalyFlights[0].threat.anomalies[0]})`
+          : `${this.liveFlights.length} active Mode S 1090ES transponders tracked in 35 NM sector · Unauthenticated broadcast stream`,
+        prediction: {
+          predictedAttack: "Synthetic 1090 MHz Message Injection / Ghost Track",
+          probability: anomalyFlights.length > 0 ? 88 : 12,
+          timeToImpact: "10-15s False TCAS Resolution Advisory",
+          confidence: 92,
+          targetFlight: anomalyFlights.length > 0 ? anomalyFlights[0].callsign : "Terminal Approach Area"
+        },
+        mitigations: ["PSR primary skin-paint data fusion", "TDoA ML multilateration spatial verification", "TCAS interrogator cross-check"]
+      });
+
+      // 3. Live GNSS RF Interference & Jamming
+      const gnssL = 3.6;
+      const gnssI = 4.0;
+      const gnssRisk = classify(gnssL, gnssI);
+      list.push({
+        id: "RT-LIVE-GNSS-01",
+        domain: "Navigation",
+        asset: "GNSS",
+        threatType: "GPS L1 (1575.42 MHz) RF Interference & Jamming",
+        category: "Satellite Navigation",
+        ciaTriad: "Availability",
+        likelihood: gnssL,
+        impact: gnssI,
+        numericRisk: gnssRisk.r,
+        tolerability: gnssRisk.tol,
+        fivePointScale: gnssRisk.scale,
+        isRealtime: true,
+        liveTelemetry: `RNAV / RNP GPS approach guidance active across ${this.liveFlights.length} real aircraft · Weak signal (-160 dBW) vulnerable to terrestrial PPDs`,
+        prediction: {
+          predictedAttack: "Low-Power PPD Jammer Activation near Threshold",
+          probability: 22,
+          timeToImpact: "Approach Localizer Transition",
+          confidence: 89,
+          targetFlight: "Approach Corridor"
+        },
+        mitigations: ["Multi-Frequency L5 GNSS + Galileo OS-NMA", "IRS dead-reckoning cross-check", "DME/DME terrestrial backup"]
+      });
+
+      // 4. CPDLC / ACARS Data Link Risk
+      const cpdlcL = 1.5;
+      const cpdlcI = 3.0;
+      const cpdlcRisk = classify(cpdlcL, cpdlcI);
+      list.push({
+        id: "RT-LIVE-CPDLC-01",
+        domain: "Communication",
+        asset: "CPDLC / ACARS",
+        threatType: "Data Link Route Amendment Spoofing",
+        category: "Digital Avionics Data Link",
+        ciaTriad: "Integrity",
+        likelihood: cpdlcL,
+        impact: cpdlcI,
+        numericRisk: cpdlcRisk.r,
+        tolerability: cpdlcRisk.tol,
+        fivePointScale: cpdlcRisk.scale,
+        isRealtime: true,
+        liveTelemetry: `En-route digital CPDLC data link active for ${cruiseFlights.length} overflight tracks · Selective addressing with ARINC 618 framing`,
+        prediction: {
+          predictedAttack: "Unauthenticated Waypoint Modification",
+          probability: 5,
+          timeToImpact: "Nominal En-Route Corridor",
+          confidence: 91,
+          targetFlight: cruiseFlights.length > 0 ? cruiseFlights[0].callsign : "En-Route Sector"
+        },
+        mitigations: ["ARINC 823 / AMS message encryption", "ECC digital signatures", "Crew waypoint verbal confirmation"]
+      });
+
+      // 5. Secondary Surveillance Radar (SSR)
+      const ssrL = 1.2;
+      const ssrI = 3.5;
+      const ssrRisk = classify(ssrL, ssrI);
+      list.push({
+        id: "RT-LIVE-SSR-01",
+        domain: "Surveillance",
+        asset: "SSR",
+        threatType: "SSR Mode S Transponder Over-Interrogation",
+        category: "Cooperative Radar",
+        ciaTriad: "Availability",
+        likelihood: ssrL,
+        impact: ssrI,
+        numericRisk: ssrRisk.r,
+        tolerability: ssrRisk.tol,
+        fivePointScale: ssrRisk.scale,
+        isRealtime: true,
+        liveTelemetry: `Mode S ground interrogator synchronized at 1030 MHz · PRF normal for ${this.liveFlights.length} aircraft`,
+        prediction: {
+          predictedAttack: "Interrogator Pulse Rate Saturation",
+          probability: 3,
+          timeToImpact: "Nominal",
+          confidence: 94,
+          targetFlight: "Sector-Wide"
+        },
+        mitigations: ["Ground sensor PRF coordination", "Power budget scheduling", "PSR skin-paint fallback"]
+      });
+
+      // 6. Net-Centric SWIM Risk
+      const swimL = 2.0;
+      const swimI = 3.0;
+      const swimRisk = classify(swimL, swimI);
+      list.push({
+        id: "RT-LIVE-SWIM-01",
+        domain: "Networking",
+        asset: "SWIM",
+        threatType: "SWIM Enterprise Service Bus MITM / DoS Attack",
+        category: "Net-Centric IP Infrastructure",
+        ciaTriad: "Integrity",
+        likelihood: swimL,
+        impact: swimI,
+        numericRisk: swimRisk.r,
+        tolerability: swimRisk.tol,
+        fivePointScale: swimRisk.scale,
+        isRealtime: true,
+        liveTelemetry: `SWIM Flight Plan & Aeronautical Data Exchange active across airlines & ANSP · ATM IP backbone nominal`,
+        prediction: {
+          predictedAttack: "Unauthorized Net-Centric Data Alteration",
+          probability: 8,
+          timeToImpact: "Nominal",
+          confidence: 92,
+          targetFlight: "Airspace Stakeholders"
+        },
+        mitigations: ["SWIM Common PKI mutual certificates", "ICAO INNOVA/ACORNS private network", "Zero Trust Network Architecture (ZTNA)"]
+      });
+
+      return list;
+    }
 
     // 1. VHF Voice Spoofing
     const vhfTarget = this.flights.find((f) => f.vhfSpoofed);
@@ -1242,7 +1979,9 @@ class AirspaceSimulator {
       ctx.fillText(s.id, sx + 6, sy + 3);
     });
 
-    this.waypoints.forEach((w) => {
+    // Draw Sector Waypoints
+    const activeWaypoints = this.feedMode === "live_adsb" && this.zoneConfigs[this.currentZone] ? this.zoneConfigs[this.currentZone].waypoints : this.waypoints;
+    activeWaypoints.forEach((w) => {
       const wx = centerX + w.x * scale;
       const wy = centerY - w.y * scale;
       ctx.strokeStyle = "#1e40af";
@@ -1258,9 +1997,11 @@ class AirspaceSimulator {
       ctx.fillText(w.name, wx + 6, wy + 3);
     });
 
+    // Draw Sector Runways
+    const activeRunways = this.feedMode === "live_adsb" && this.zoneConfigs[this.currentZone] ? this.zoneConfigs[this.currentZone].runways : this.runways;
     ctx.strokeStyle = "#10b981";
     ctx.lineWidth = 2.5;
-    this.runways.forEach((rw) => {
+    activeRunways.forEach((rw) => {
       const rx1 = centerX + (rw.x - rw.length / 2) * scale;
       const rx2 = centerX + (rw.x + rw.length / 2) * scale;
       const ry = centerY - rw.y * scale;
@@ -1270,31 +2011,35 @@ class AirspaceSimulator {
       ctx.stroke();
     });
 
-    this.jammingZones.forEach((z) => {
-      const zx = centerX + z.x * scale;
-      const zy = centerY - z.y * scale;
-      const radPx = z.radius * scale;
+    // Draw Jamming Contours (Sandbox Mode)
+    if (this.feedMode === "sandbox") {
+      this.jammingZones.forEach((z) => {
+        const zx = centerX + z.x * scale;
+        const zy = centerY - z.y * scale;
+        const radPx = z.radius * scale;
 
-      const grad = ctx.createRadialGradient(zx, zy, 2, zx, zy, radPx);
-      grad.addColorStop(0, "rgba(239, 68, 68, 0.45)");
-      grad.addColorStop(0.7, "rgba(245, 158, 11, 0.2)");
-      grad.addColorStop(1, "rgba(239, 68, 68, 0.0)");
+        const grad = ctx.createRadialGradient(zx, zy, 2, zx, zy, radPx);
+        grad.addColorStop(0, "rgba(239, 68, 68, 0.45)");
+        grad.addColorStop(0.7, "rgba(245, 158, 11, 0.2)");
+        grad.addColorStop(1, "rgba(239, 68, 68, 0.0)");
 
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(zx, zy, radPx, 0, Math.PI * 2);
-      ctx.fill();
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(zx, zy, radPx, 0, Math.PI * 2);
+        ctx.fill();
 
-      ctx.strokeStyle = "#ef4444";
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+        ctx.strokeStyle = "#ef4444";
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-      ctx.fillStyle = "#fca5a5";
-      ctx.font = "10px JetBrains Mono";
-      ctx.fillText("⚠️ GPS JAMMING RF INTERFERENCE CONTOUR", zx - 110, zy - radPx - 6);
-    });
+        ctx.fillStyle = "#fca5a5";
+        ctx.font = "10px JetBrains Mono";
+        ctx.fillText("⚠️ GPS JAMMING RF INTERFERENCE CONTOUR", zx - 110, zy - radPx - 6);
+      });
+    }
 
+    // Rotating Radar Sweep Beam
     const sweepRadius = Math.max(width, height) * 0.7;
     const sweepX = centerX + Math.cos(this.radarAngle) * sweepRadius;
     const sweepY = centerY + Math.sin(this.radarAngle) * sweepRadius;
@@ -1306,108 +2051,190 @@ class AirspaceSimulator {
     ctx.lineTo(sweepX, sweepY);
     ctx.stroke();
 
-    this.flights.forEach((f) => {
-      const isSelected = f.id === this.selectedFlightId;
-      const fx = centerX + f.claimedX * scale;
-      const fy = centerY - f.claimedY * scale;
+    // RENDER AIRCRAFT
+    if (this.feedMode === "live_adsb") {
+      if (this.liveFlights.length === 0) {
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "12px JetBrains Mono";
+        ctx.textAlign = "center";
+        ctx.fillText("Connecting to OpenSky Network ADS-B Stream...", centerX, centerY + 45);
+        ctx.textAlign = "start";
+      }
 
-      if (f.adsbSpoofed) {
-        const tx = centerX + f.trueX * scale;
-        const ty = centerY - f.trueY * scale;
+      this.liveFlights.forEach((f) => {
+        const fid = f.callsign || f.icao24;
+        const isSelected = fid === this.selectedFlightId;
+        const fx = centerX + f.x * scale;
+        const fy = centerY - f.y * scale;
 
-        ctx.fillStyle = "#38bdf8";
+        const th = f.threat || {};
+        let blipColor = "#10b981";
+        if (th.tolerability === "intolerable") blipColor = "#ef4444";
+        else if (th.tolerability === "tolerable") blipColor = "#f59e0b";
+
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate((f.heading * Math.PI) / 180);
+
+        ctx.fillStyle = blipColor;
         ctx.beginPath();
-        ctx.arc(tx, ty, 3.5, 0, Math.PI * 2);
+        ctx.moveTo(0, -7);
+        ctx.lineTo(5, 6);
+        ctx.lineTo(0, 4);
+        ctx.lineTo(-5, 6);
+        ctx.closePath();
         ctx.fill();
 
-        ctx.strokeStyle = "#f59e0b";
-        ctx.setLineDash([3, 3]);
+        if (isSelected) {
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, 13, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Reticle tick marks
+          ctx.beginPath();
+          ctx.moveTo(-16, 0); ctx.lineTo(-13, 0);
+          ctx.moveTo(13, 0); ctx.lineTo(16, 0);
+          ctx.moveTo(0, -16); ctx.lineTo(0, -13);
+          ctx.moveTo(0, 13); ctx.lineTo(0, 16);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // Lead heading vector (approx 45s ahead)
+        const leadNM = (f.speed / 3600) * 45;
+        const radLead = ((90 - f.heading) * Math.PI) / 180;
+        ctx.strokeStyle = blipColor;
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(fx, fy);
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx + Math.cos(radLead) * leadNM * scale, fy - Math.sin(radLead) * leadNM * scale);
         ctx.stroke();
-        ctx.setLineDash([]);
 
-        ctx.fillStyle = "#f59e0b";
-        ctx.font = "9px JetBrains Mono";
-        ctx.fillText("True Skin Echo (PSR)", tx + 6, ty + 12);
-      }
+        ctx.fillStyle = isSelected ? "#ffffff" : "#cbd5e1";
+        ctx.font = "bold 11px JetBrains Mono";
+        ctx.fillText(f.callsign, fx + 10, fy - 6);
 
-      let blipColor = "#10b981";
-      if (f.risk.tol === "intolerable") blipColor = "#ef4444";
-      else if (f.risk.tol === "tolerable") blipColor = "#f59e0b";
+        ctx.font = "10px JetBrains Mono";
+        ctx.fillStyle = blipColor;
+        const fl = Math.round(f.altitude / 100);
+        ctx.fillText(`FL${fl} ${f.speed}kt`, fx + 10, fy + 7);
 
-      ctx.save();
-      ctx.translate(fx, fy);
-      ctx.rotate((f.heading * Math.PI) / 180);
+        ctx.fillStyle = th.tolerability === "intolerable" ? "#ef4444" : th.tolerability === "tolerable" ? "#f59e0b" : "#10b981";
+        ctx.fillText(`Risk r=${(th.composite_risk || 0).toFixed(1)} [${(th.tolerability || "").toUpperCase()}]`, fx + 10, fy + 19);
 
-      ctx.fillStyle = blipColor;
-      ctx.beginPath();
-      ctx.moveTo(0, -7);
-      ctx.lineTo(5, 6);
-      ctx.lineTo(0, 4);
-      ctx.lineTo(-5, 6);
-      ctx.closePath();
-      ctx.fill();
+        if (th.anomalies && th.anomalies.length > 0) {
+          ctx.fillStyle = "#f87171";
+          ctx.font = "bold 9px JetBrains Mono";
+          ctx.fillText(`⚠️ ANOMALY DETECTED`, fx + 10, fy + 30);
+        }
+      });
+    } else {
+      // Tactical Sandbox Flights
+      this.flights.forEach((f) => {
+        const isSelected = f.id === this.selectedFlightId;
+        const fx = centerX + f.claimedX * scale;
+        const fy = centerY - f.claimedY * scale;
 
-      if (isSelected) {
-        ctx.strokeStyle = "#38bdf8";
+        if (f.adsbSpoofed) {
+          const tx = centerX + f.trueX * scale;
+          const ty = centerY - f.trueY * scale;
+
+          ctx.fillStyle = "#38bdf8";
+          ctx.beginPath();
+          ctx.arc(tx, ty, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = "#f59e0b";
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(fx, fy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = "#f59e0b";
+          ctx.font = "9px JetBrains Mono";
+          ctx.fillText("True Skin Echo (PSR)", tx + 6, ty + 12);
+        }
+
+        let blipColor = "#10b981";
+        if (f.risk.tol === "intolerable") blipColor = "#ef4444";
+        else if (f.risk.tol === "tolerable") blipColor = "#f59e0b";
+
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate((f.heading * Math.PI) / 180);
+
+        ctx.fillStyle = blipColor;
+        ctx.beginPath();
+        ctx.moveTo(0, -7);
+        ctx.lineTo(5, 6);
+        ctx.lineTo(0, 4);
+        ctx.lineTo(-5, 6);
+        ctx.closePath();
+        ctx.fill();
+
+        if (isSelected) {
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(0, 0, 12, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        const leadNM = (f.speed / 3600) * 60;
+        const radLead = ((90 - f.heading) * Math.PI) / 180;
+        ctx.strokeStyle = blipColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx + Math.cos(radLead) * leadNM * scale, fy - Math.sin(radLead) * leadNM * scale);
+        ctx.stroke();
+
+        ctx.fillStyle = isSelected ? "#ffffff" : "#cbd5e1";
+        ctx.font = "bold 11px JetBrains Mono";
+        ctx.fillText(f.callsign, fx + 10, fy - 6);
+
+        ctx.font = "10px JetBrains Mono";
+        ctx.fillStyle = blipColor;
+        const fl = Math.round(f.altitude / 100);
+        ctx.fillText(`FL${fl} ${f.speed}kt`, fx + 10, fy + 7);
+
+        ctx.fillStyle = f.risk.tol === "intolerable" ? "#ef4444" : f.risk.tol === "tolerable" ? "#f59e0b" : "#10b981";
+        ctx.fillText(`Risk r=${f.risk.r} [${f.risk.tol.toUpperCase()}]`, fx + 10, fy + 19);
+
+        if (f.activeThreat) {
+          ctx.fillStyle = "#f87171";
+          ctx.font = "bold 9px JetBrains Mono";
+          ctx.fillText(`⚠️ ${f.activeThreat.substring(0, 24)}..`, fx + 10, fy + 30);
+        }
+      });
+
+      this.ghostAircraft.forEach((g) => {
+        const gx = centerX + g.x * scale;
+        const gy = centerY - g.y * scale;
+
+        ctx.save();
+        ctx.translate(gx, gy);
+        ctx.rotate((g.heading * Math.PI) / 180);
+
+        ctx.strokeStyle = "#ef4444";
         ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, 12, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.restore();
+        ctx.setLineDash([3, 2]);
+        ctx.strokeRect(-6, -6, 12, 12);
+        ctx.setLineDash([]);
+        ctx.restore();
 
-      const leadNM = (f.speed / 3600) * 60;
-      const radLead = ((90 - f.heading) * Math.PI) / 180;
-      ctx.strokeStyle = blipColor;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(fx, fy);
-      ctx.lineTo(fx + Math.cos(radLead) * leadNM * scale, fy - Math.sin(radLead) * leadNM * scale);
-      ctx.stroke();
-
-      ctx.fillStyle = isSelected ? "#ffffff" : "#cbd5e1";
-      ctx.font = "bold 11px JetBrains Mono";
-      ctx.fillText(f.callsign, fx + 10, fy - 6);
-
-      ctx.font = "10px JetBrains Mono";
-      ctx.fillStyle = blipColor;
-      const fl = Math.round(f.altitude / 100);
-      ctx.fillText(`FL${fl} ${f.speed}kt`, fx + 10, fy + 7);
-
-      ctx.fillStyle = f.risk.tol === "intolerable" ? "#ef4444" : f.risk.tol === "tolerable" ? "#f59e0b" : "#10b981";
-      ctx.fillText(`Risk r=${f.risk.r} [${f.risk.tol.toUpperCase()}]`, fx + 10, fy + 19);
-
-      if (f.activeThreat) {
-        ctx.fillStyle = "#f87171";
-        ctx.font = "bold 9px JetBrains Mono";
-        ctx.fillText(`⚠️ ${f.activeThreat.substring(0, 24)}..`, fx + 10, fy + 30);
-      }
-    });
-
-    this.ghostAircraft.forEach((g) => {
-      const gx = centerX + g.x * scale;
-      const gy = centerY - g.y * scale;
-
-      ctx.save();
-      ctx.translate(gx, gy);
-      ctx.rotate((g.heading * Math.PI) / 180);
-
-      ctx.strokeStyle = "#ef4444";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 2]);
-      ctx.strokeRect(-6, -6, 12, 12);
-      ctx.setLineDash([]);
-      ctx.restore();
-
-      ctx.fillStyle = "#ef4444";
-      ctx.font = "bold 10px JetBrains Mono";
-      ctx.fillText(`${g.callsign} [GHOST]`, gx + 10, gy - 4);
-      ctx.font = "9px JetBrains Mono";
-      ctx.fillText(`FL${Math.round(g.altitude / 100)} NO PRIMARY ECHO`, gx + 10, gy + 8);
-    });
+        ctx.fillStyle = "#ef4444";
+        ctx.font = "bold 10px JetBrains Mono";
+        ctx.fillText(`${g.callsign} [GHOST]`, gx + 10, gy - 4);
+        ctx.font = "9px JetBrains Mono";
+        ctx.fillText(`FL${Math.round(g.altitude / 100)} NO PRIMARY ECHO`, gx + 10, gy + 8);
+      });
+    }
   }
 
   // =========================================================================

@@ -77,5 +77,45 @@ class TestAviationRiskMethodology(unittest.TestCase):
         self.assertEqual(swim_summary["highest_risk_asset"], "SWIM")
         self.assertAlmostEqual(swim_summary["max_risk"], 10.5, places=1)
 
+    def test_live_threat_estimation_final_approach(self):
+        """Test Algorithm 1 threat estimation on real flight in Final Approach"""
+        from live_tracker import estimate_aircraft_cyber_threat
+        # Low altitude, descending -> Final approach (VHF Voice Spoofing risk = 15.0 Intolerable)
+        threat = estimate_aircraft_cyber_threat(
+            callsign="BAW381",
+            country="United Kingdom",
+            alt_ft=1200,
+            geo_alt_ft=1180,
+            speed_kts=135,
+            vertical_rate_fpm=-650,
+            dist_nm=3.5,
+            on_ground=False,
+            squawk="1200",
+            latency_sec=1.2
+        )
+        self.assertEqual(threat["phase"], "Final Approach")
+        self.assertEqual(threat["composite_risk"], 15.0)
+        self.assertEqual(threat["tolerability"], "intolerable")
+        self.assertEqual(threat["primary_asset"], "VHF Voice")
+
+    def test_live_threat_estimation_altimetry_anomaly(self):
+        """Test detection of Baro vs Geo altimetry discrepancy anomaly"""
+        from live_tracker import estimate_aircraft_cyber_threat
+        # Baro vs Geo difference > 1500 ft (ADS-B spoofing anomaly)
+        threat = estimate_aircraft_cyber_threat(
+            callsign="GHOST99",
+            country="Unknown",
+            alt_ft=5000,
+            geo_alt_ft=7200,
+            speed_kts=250,
+            vertical_rate_fpm=0,
+            dist_nm=12.0,
+            on_ground=False,
+            squawk="2000",
+            latency_sec=2.0
+        )
+        self.assertTrue(any("Altimetry Discrepancy" in a for a in threat["anomalies"]))
+        self.assertEqual(threat["phase"], "En-Route Cruise")
+
 if __name__ == "__main__":
     unittest.main()
