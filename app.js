@@ -129,6 +129,35 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     state.activeThreats = airspaceSim.getLiveDynamicThreats();
+
+    // Direct event listener bindings for guaranteed UI responsiveness
+    const zoneSel = document.getElementById("sim-zone-selector");
+    if (zoneSel) {
+      zoneSel.addEventListener("change", (e) => {
+        airspaceSim.setZone(e.target.value);
+      });
+    }
+
+    const feedLiveBtn = document.getElementById("sim-feed-live-btn");
+    if (feedLiveBtn) {
+      feedLiveBtn.addEventListener("click", () => {
+        airspaceSim.setFeedMode("live_adsb");
+      });
+    }
+
+    const feedSandBtn = document.getElementById("sim-feed-sandbox-btn");
+    if (feedSandBtn) {
+      feedSandBtn.addEventListener("click", () => {
+        airspaceSim.setFeedMode("sandbox");
+      });
+    }
+
+    const pollBtn = document.getElementById("sim-poll-btn");
+    if (pollBtn) {
+      pollBtn.addEventListener("click", () => {
+        airspaceSim.fetchLiveSectorFlights(true);
+      });
+    }
   } else {
     state.activeThreats = JSON.parse(JSON.stringify(INITIAL_THREATS));
   }

@@ -242,8 +242,8 @@
           </div>
 
           <!-- Manual Poll Trigger -->
-          <button onclick="airspaceSim.fetchLiveSectorFlights()" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200 transition-colors flex items-center space-x-1.5" title="Poll latest live transponder squitters">
-            <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-sky-400"></i>
+          <button id="sim-poll-btn" onclick="airspaceSim.fetchLiveSectorFlights(true)" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200 transition-colors flex items-center space-x-1.5" title="Poll latest live transponder squitters">
+            <i data-lucide="rotate-cw" id="sim-poll-icon" class="w-3.5 h-3.5 text-sky-400"></i>
             <span id="sim-poll-label">Poll Feed</span>
           </button>
 
