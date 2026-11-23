@@ -6,8 +6,9 @@
 // Global State
 const state = {
   activeTab: "live-sim",
+  dataSource: "live", // "live" (dynamic Red/Blue telemetry) or "baseline" (static IEEE Access tables)
   domainFilter: "All",
-  activeThreats: JSON.parse(JSON.stringify(INITIAL_THREATS)),
+  activeThreats: [],
   selectedThreat: null,
   activeDomainSubtab: "Communication",
   matrixDisplayMode: "r", // 'r' (numeric), 'scale' (1-5), 'count' (threat badges)
@@ -110,11 +111,29 @@ document.addEventListener("DOMContentLoaded", () => {
   initMatrixControls();
   initEvaluator();
   initSimulator();
-  renderAll();
+
   // Initialize Live Airspace Radar Simulator
   if (typeof airspaceSim !== "undefined") {
     airspaceSim.init("radar-canvas");
+
+    // Real-time hook: whenever simulator ticks, update dashboard if in live mode
+    airspaceSim.onThreatsUpdated = (liveThreats) => {
+      if (state.dataSource === "live") {
+        state.activeThreats = liveThreats;
+        updateExecutiveMetrics();
+        renderThreatTable();
+        renderMatrixGrid();
+        if (state.activeTab === "overview") updateOverviewCharts();
+        if (state.activeTab === "domains") renderDomainCharts();
+      }
+    };
+
+    state.activeThreats = airspaceSim.getLiveDynamicThreats();
+  } else {
+    state.activeThreats = JSON.parse(JSON.stringify(INITIAL_THREATS));
   }
+
+  renderAll();
 });
 
 // Render everything on load or data update
@@ -126,6 +145,46 @@ function renderAll() {
   renderProtocolTables();
   renderLiteratureBenchmark();
   updateOverviewCharts();
+}
+
+// Toggle between Live Predicted Telemetry and Static Baseline
+function setDataSource(mode) {
+  state.dataSource = mode;
+  const liveBtn = document.getElementById("datasource-live-btn");
+  const baseBtn = document.getElementById("datasource-baseline-btn");
+  const indicator = document.getElementById("datasource-indicator");
+
+  if (mode === "live") {
+    if (liveBtn) {
+      liveBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-600 text-white shadow-sm border border-sky-400 flex items-center space-x-1.5";
+      liveBtn.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span><span>Live Predicted Stream</span>';
+    }
+    if (baseBtn) {
+      baseBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-slate-800 text-slate-400 hover:text-white border border-slate-700 flex items-center space-x-1.5";
+      baseBtn.innerHTML = '<i data-lucide="database" class="w-3.5 h-3.5"></i><span>Research Baseline</span>';
+    }
+    if (indicator) {
+      indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block mr-1.5"></span><span class="text-emerald-400 font-mono font-bold">STREAMING RED/BLUE TELEMETRY</span>';
+    }
+    if (typeof airspaceSim !== "undefined") {
+      state.activeThreats = airspaceSim.getLiveDynamicThreats();
+    }
+  } else {
+    if (baseBtn) {
+      baseBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-600 text-white shadow-sm border border-sky-400 flex items-center space-x-1.5";
+      baseBtn.innerHTML = '<i data-lucide="database" class="w-3.5 h-3.5"></i><span>Research Baseline</span>';
+    }
+    if (liveBtn) {
+      liveBtn.className = "px-3 py-1.5 text-xs font-mono font-bold rounded bg-slate-800 text-slate-400 hover:text-white border border-slate-700 flex items-center space-x-1.5";
+      liveBtn.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500 inline-block mr-1.5"></span><span>Live Predicted Stream</span>';
+    }
+    if (indicator) {
+      indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-sky-400 inline-block mr-1.5"></span><span class="text-sky-400 font-mono font-bold">RESEARCH PAPER BASELINE (IEEE ACCESS)</span>';
+    }
+    state.activeThreats = JSON.parse(JSON.stringify(INITIAL_THREATS));
+  }
+  if (window.lucide) lucide.createIcons();
+  renderAll();
 }
 
 // Navigation Tabs
@@ -459,8 +518,34 @@ function renderThreatTable() {
           ${t.asset}
         </td>
         <td class="py-3 px-4 text-xs text-slate-200 font-medium">
-          <div>${t.threatType}</div>
-          <div class="text-[11px] text-slate-500 font-mono">${t.ciaTriad}</div>
+          <div class="flex items-center space-x-1.5">
+            <span class="font-bold text-white">${t.threatType}</span>
+            ${t.isRealtime ? `<span class="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-emerald-950 text-emerald-400 border border-emerald-700/60">LIVE</span>` : ""}
+          </div>
+          ${
+            t.liveTelemetry
+              ? `<div class="text-[11px] text-slate-400 font-mono mt-0.5 truncate max-w-sm" title="${t.liveTelemetry}"><span class="text-sky-400 font-semibold">Sensor:</span> ${t.liveTelemetry}</div>`
+              : `<div class="text-[11px] text-slate-500 font-mono">${t.ciaTriad}</div>`
+          }
+          ${
+            t.prediction
+              ? `
+              <div class="text-[10px] font-mono mt-1 flex items-center space-x-2">
+                <span class="px-1.5 py-0.2 rounded font-bold ${
+                  t.prediction.probability >= 80
+                    ? "bg-red-950 text-red-400 border border-red-700 animate-pulse"
+                    : t.prediction.probability >= 50
+                    ? "bg-amber-950 text-amber-400 border border-amber-700"
+                    : "bg-slate-900 text-slate-400 border border-slate-800"
+                }">
+                  AI Forecast: ${t.prediction.probability}% Prob
+                </span>
+                <span class="text-slate-400">Target: ${t.prediction.targetFlight}</span>
+                <span class="text-slate-500">· ETA: ${t.prediction.timeToImpact}</span>
+              </div>
+            `
+              : ""
+          }
         </td>
         <td class="py-3 px-4 font-mono text-xs text-center text-slate-300">${t.likelihood.toFixed(1)}</td>
         <td class="py-3 px-4 font-mono text-xs text-center text-slate-300">${t.impact.toFixed(1)}</td>
@@ -517,7 +602,7 @@ function inspectThreat(threatId) {
           <span class="px-2.5 py-0.5 rounded text-xs uppercase font-bold bg-slate-800 text-purple-300">${t.ciaTriad}</span>
         </div>
         <h3 class="text-xl font-bold text-white mt-2">${t.asset}: ${t.threatType}</h3>
-        <p class="text-xs text-slate-400 font-mono">Paper Reference: ${t.figure || "Section II-VI"}</p>
+        <p class="text-xs text-slate-400 font-mono">Reference: ${t.figure || "Section II-VI"}</p>
       </div>
       <div class="text-right">
         <span class="px-3 py-1.5 text-xs rounded-full uppercase tracking-wider font-bold ${style.badge}">
@@ -526,6 +611,37 @@ function inspectThreat(threatId) {
         <div class="text-xs font-mono text-slate-400 mt-1">Scale: ${scale5}/5</div>
       </div>
     </div>
+
+    ${
+      t.isRealtime && t.prediction
+        ? `
+      <div class="bg-gradient-to-r from-red-950/40 via-purple-950/30 to-slate-900 border border-red-700/60 rounded-lg p-3.5 space-y-2.5 my-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+            <h4 class="text-xs font-bold uppercase font-mono text-red-400">Blue Team Sensor Feed & AI Attack Forecaster</h4>
+          </div>
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-900/60 text-red-200 border border-red-600">
+            ${t.prediction.probability}% Attack Probability
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+          <div class="p-2 bg-slate-950/80 rounded border border-slate-800">
+            <span class="text-[10px] text-slate-500 uppercase">Live Sensor Telemetry</span>
+            <div class="text-emerald-400 mt-0.5 font-bold truncate">${t.liveTelemetry || "Nominal RF / Avionics Link"}</div>
+          </div>
+          <div class="p-2 bg-slate-950/80 rounded border border-slate-800">
+            <span class="text-[10px] text-slate-500 uppercase">Projected Time to Impact</span>
+            <div class="text-amber-400 mt-0.5 font-bold">${t.prediction.timeToImpact || "Immediate"}</div>
+          </div>
+        </div>
+        <div class="text-[11px] font-mono text-slate-300">
+          <span class="text-slate-500">Predicted Threat Scenario:</span> <span class="text-white font-bold">${t.prediction.predictedAttack}</span> · <span class="text-slate-500">Target Track:</span> <span class="text-sky-300">${t.prediction.targetFlight}</span>
+        </div>
+      </div>
+      `
+        : ""
+    }
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-4">
       <div class="bg-slate-900/90 border border-slate-800 rounded p-3 text-center">
@@ -1372,4 +1488,97 @@ function exportThreatsCSV() {
 
 function printAuditReport() {
   window.print();
+}
+
+// --- CUSTOM TELEMETRY MODAL & STREAM INGESTION ---
+function openCustomTelemetryModal() {
+  const modal = document.getElementById("telemetry-ingest-modal");
+  if (modal) {
+    modal.classList.remove("hidden");
+    const payloadEl = document.getElementById("telemetry-json-payload");
+    if (payloadEl && !payloadEl.value.trim()) {
+      loadPresetTelemetry("gps_jam");
+    }
+  }
+}
+
+function closeCustomTelemetryModal() {
+  const modal = document.getElementById("telemetry-ingest-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function loadPresetTelemetry(type) {
+  const payloadEl = document.getElementById("telemetry-json-payload");
+  if (!payloadEl) return;
+
+  let sample = {};
+  switch (type) {
+    case "gps_jam":
+      sample = {
+        callsign: "UAL421",
+        gnssSnr: 16.4,
+        gnssJammed: true,
+        rfNoiseFloorDbm: -72.0,
+        satellitesLocked: 2,
+        notes: "Intentional high-power L1 jamming detected on approach"
+      };
+      break;
+    case "adsb_ghost":
+      sample = {
+        callsign: "AAL104",
+        claimedX: 12.8,
+        claimedY: -6.4,
+        trueX: 4.2,
+        trueY: -2.1,
+        adsbSpoofed: true,
+        primaryRadarEchoDbsm: 0.0,
+        notes: "Ghost Mode S transponder track without physical PSR return"
+      };
+      break;
+    case "vhf_spoof":
+      sample = {
+        callsign: "DAL883",
+        vhfAnomaly: true,
+        assignedFrequency: "124.500 MHz",
+        clearance: "Rogue ground station transmitting descent instruction to FL040",
+        notes: "Unauthorized AM voice transmission detected on sector frequency"
+      };
+      break;
+    case "nominal":
+      sample = {
+        callsign: "UAL421",
+        gnssSnr: 47.1,
+        gnssJammed: false,
+        claimedX: 0.0,
+        trueX: 0.0,
+        transponderRate: 360,
+        vhfAnomaly: false,
+        notes: "Nominal operational state. All sensors within standard ICAO thresholds."
+      };
+      break;
+  }
+
+  payloadEl.value = JSON.stringify(sample, null, 2);
+}
+
+function submitCustomTelemetryPacket() {
+  const payloadEl = document.getElementById("telemetry-json-payload");
+  if (!payloadEl) return;
+
+  try {
+    const packet = JSON.parse(payloadEl.value);
+    if (typeof airspaceSim !== "undefined") {
+      const res = airspaceSim.processCustomTelemetryPacket(packet);
+      if (res && res.success) {
+        setDataSource("live");
+        closeCustomTelemetryModal();
+        switchTab("live-sim");
+        alert(`Telemetry Ingested for Flight ${res.flight}!\nAlgorithm 1 Risk Re-evaluated: r = ${res.risk.r} (${res.risk.tol.toUpperCase()}).\nLive prediction engine updated!`);
+      } else {
+        alert("Failed to process packet: " + (res?.error || "Unknown error"));
+      }
+    }
+  } catch (err) {
+    alert("Invalid JSON format in telemetry payload:\n" + err.message);
+  }
 }

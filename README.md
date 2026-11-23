@@ -48,6 +48,12 @@ As attacks develop, the engine dynamically recalculates:
 - **TDoA ML Localization**: Restores true aircraft coordinates using RF fingerprinting from OpenSky data.
 - **Automated VHF Frequency Hopping**: Transmits emergency switch orders to pre-allocated backup channels.
 
+### 6. Streaming Red/Blue Telemetry & Custom Ingestion Pipeline
+- **Reactive Global Pipeline**: Dynamically synchronizes executive metrics, the 5×5 ICAO Risk Matrix, the Risk Registry, and CNS deep-dive charts with live streaming Red/Blue events.
+- **Dual Data Source Switcher**: Seamlessly toggle between `[🟢 Live Predicted Stream]` and `[🔵 Research Baseline]`.
+- **Adversarial Campaign Deck**: One-click launch of multi-stage coordinated campaigns (`GNSS Jamming` + `ADS-B Ghost Decoy` + `Rogue VHF Voice Clearance`).
+- **Custom Telemetry Ingest Modal**: Ingest synthetic JSON packets (e.g., $C/N_0$ SNR drop, unphysical claimed vs. true coordinate divergence, interrogation PRF surge) with instant AI risk re-evaluation and attack forecasting.
+
 ---
 
 ## 🎯 Executive Summary of Research Findings (IEEE Access 2021)

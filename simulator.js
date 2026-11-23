@@ -6,6 +6,7 @@
  * - Predictive AI Anomaly Detection & Threat Forecasting Engine (Blue Team)
  * - Dynamic Real-Time Algorithm 1 Risk Re-Assessment (r = L x I, Tolerability R)
  * - Multi-Layer Active Countermeasure Defense Response
+ * - Custom Telemetry & Red/Blue Feed Ingestion
  */
 
 class AirspaceSimulator {
@@ -17,6 +18,8 @@ class AirspaceSimulator {
     this.simTime = 0; // seconds
     this.radarAngle = 0; // sweep angle in radians
     this.selectedFlightId = "UAL421";
+    this.onThreatsUpdated = null;
+    this.lastThreatUpdateTime = 0;
 
     // Sector dimensions (nautical miles, centered at 0,0 - Terminal Radar Approach Control TRACON)
     this.sectorRadius = 35; // NM
@@ -251,7 +254,6 @@ class AirspaceSimulator {
       this.handleCanvasClick(e);
     });
 
-    // Start simulation loop if not already started
     if (!this.loopStarted) {
       this.loopStarted = true;
       this.lastTimestamp = performance.now();
@@ -280,7 +282,6 @@ class AirspaceSimulator {
     const nmX = (clickX - centerX) / scale;
     const nmY = (centerY - clickY) / scale;
 
-    // Check if clicked close to any flight
     for (const f of this.flights) {
       const dist = Math.hypot(f.claimedX - nmX, f.claimedY - nmY);
       if (dist < 4.0) {
@@ -366,7 +367,6 @@ class AirspaceSimulator {
 
   tick(dt) {
     this.simTime += dt;
-    // Radar rotating at 12 RPM (0.2 revs per sec = 1.256 rad/s)
     this.radarAngle = (this.radarAngle + 1.256 * dt) % (Math.PI * 2);
 
     // 1. Update Flight Kinematics
@@ -383,6 +383,12 @@ class AirspaceSimulator {
 
     // 5. Update Telemetry Panels
     this.refreshTelemetryUI();
+
+    // 6. Notify subscribers of live threats (throttled every 500ms)
+    if (this.onThreatsUpdated && this.simTime - this.lastThreatUpdateTime > 0.5) {
+      this.lastThreatUpdateTime = this.simTime;
+      this.onThreatsUpdated(this.getLiveDynamicThreats());
+    }
   }
 
   updateFlightKinematics(dt) {
@@ -393,7 +399,6 @@ class AirspaceSimulator {
       f.trueX += Math.cos(radHeading) * speedNMpS * dt;
       f.trueY += Math.sin(radHeading) * speedNMpS * dt;
 
-      // Update altitude toward target
       if (Math.abs(f.altitude - f.targetAltitude) > 10) {
         const altRate = f.altitude > f.targetAltitude ? -1500 : 1500;
         f.altitude += (altRate / 60) * dt;
@@ -421,6 +426,424 @@ class AirspaceSimulator {
       g.x += Math.cos(rad) * speedNMpS * dt;
       g.y += Math.sin(rad) * speedNMpS * dt;
     });
+  }
+
+  // =========================================================================
+  // DYNAMIC THREAT GENERATOR FOR REAL-TIME ASSESSMENT & PREDICTION
+  // =========================================================================
+  getLiveDynamicThreats() {
+    const list = [];
+
+    // Helper: Algorithm 1 classification
+    const classify = (l, i) => {
+      const r = Number((l * i).toFixed(2));
+      let tol = "acceptable";
+      if (r >= 15.0) tol = "intolerable";
+      else if (r >= 5.0) tol = "tolerable";
+
+      let scale = 1;
+      if (r >= 20.0) scale = 5;
+      else if (r >= 15.0) scale = 4;
+      else if (r >= 10.0) scale = 3;
+      else if (r >= 5.0) scale = 2;
+
+      return { r, tol, scale };
+    };
+
+    // 1. VHF Voice Spoofing
+    const vhfTarget = this.flights.find((f) => f.vhfSpoofed);
+    const vhfL = vhfTarget ? 4.5 : 2.0;
+    const vhfI = vhfTarget ? 5.0 : 4.0;
+    const vhfRisk = classify(vhfL, vhfI);
+    list.push({
+      id: "RT-COM-VHF-01",
+      domain: "Communication",
+      asset: "VHF Voice",
+      threatType: "Rogue ATC Voice Clearance Spoofing",
+      category: "RF Voice Broadcast",
+      ciaTriad: "Integrity",
+      likelihood: vhfL,
+      impact: vhfI,
+      numericRisk: vhfRisk.r,
+      tolerability: vhfRisk.tol,
+      fivePointScale: vhfRisk.scale,
+      isRealtime: true,
+      liveTelemetry: vhfTarget ? `Rogue Transmission on ${vhfTarget.assignedFrequency} · Abrupt descent to FL040` : "124.500 MHz nominal · Carrier SNR 36 dB",
+      prediction: {
+        predictedAttack: "Unauthorized Ground Clearance Spoofing",
+        probability: vhfTarget ? 98 : 4,
+        timeToImpact: vhfTarget ? "Immediate (Collision / CFIT)" : "N/A (Nominal)",
+        confidence: 96,
+        targetFlight: vhfTarget ? vhfTarget.callsign : "Sector-Wide"
+      },
+      mitigations: ["Pilot read-back/hear-back protocol", "Emergency frequency hopping to 121.900 MHz", "Secondary radar altitude verification"]
+    });
+
+    // 2. VHF Channel Jamming
+    const vhfJam = this.jammingZones.length > 0;
+    const vhfJamL = vhfJam ? 4.0 : 1.8;
+    const vhfJamI = vhfJam ? 3.5 : 2.5;
+    const vhfJamRisk = classify(vhfJamL, vhfJamI);
+    list.push({
+      id: "RT-COM-VHF-02",
+      domain: "Communication",
+      asset: "VHF Voice",
+      threatType: "VHF Channel Noise Jamming",
+      category: "RF Voice Broadcast",
+      ciaTriad: "Availability",
+      likelihood: vhfJamL,
+      impact: vhfJamI,
+      numericRisk: vhfJamRisk.r,
+      tolerability: vhfJamRisk.tol,
+      fivePointScale: vhfJamRisk.scale,
+      isRealtime: true,
+      liveTelemetry: vhfJam ? "Elevated RF noise floor in 118-137 MHz band (+18 dB)" : "RF Noise Floor -112 dBm (Clean)",
+      prediction: {
+        predictedAttack: "Wideband VHF RF Interference",
+        probability: vhfJam ? 89 : 8,
+        timeToImpact: vhfJam ? "Channel Congestion in 20s" : "Nominal",
+        confidence: 92,
+        targetFlight: "Approach Sector"
+      },
+      mitigations: ["Pre-designated backup frequencies", "Directional ground antennas"]
+    });
+
+    // 3. CPDLC / ACARS Data Link Tampering
+    const cpdlcTarget = this.flights.find((f) => f.cpdlcTampered);
+    const cpdlcL = cpdlcTarget ? 4.0 : 1.5;
+    const cpdlcI = cpdlcTarget ? 4.5 : 3.0;
+    const cpdlcRisk = classify(cpdlcL, cpdlcI);
+    list.push({
+      id: "RT-COM-CPDLC-01",
+      domain: "Communication",
+      asset: "CPDLC / ACARS",
+      threatType: "Data Link Route Injection & Tampering",
+      category: "Digital Avionics Data Link",
+      ciaTriad: "Integrity",
+      likelihood: cpdlcL,
+      impact: cpdlcI,
+      numericRisk: cpdlcRisk.r,
+      tolerability: cpdlcRisk.tol,
+      fivePointScale: cpdlcRisk.scale,
+      isRealtime: true,
+      liveTelemetry: cpdlcTarget ? `Bogus Route Amendment injected to ${cpdlcTarget.callsign} · Missing X.509 PKI Signature` : "ARINC 618 Stream Valid · PKI Validated",
+      prediction: {
+        predictedAttack: "Unauthenticated Waypoint Modification",
+        probability: cpdlcTarget ? 93 : 5,
+        timeToImpact: cpdlcTarget ? "At Next Waypoint Entry" : "Nominal",
+        confidence: 91,
+        targetFlight: cpdlcTarget ? cpdlcTarget.callsign : "En-Route Sector"
+      },
+      mitigations: ["ARINC 823 / AMS message encryption", "ECC digital signatures", "Crew waypoint verbal confirmation"]
+    });
+
+    // 4. GNSS RF Jamming
+    const gnssJamFlight = this.flights.find((f) => f.gnssJammed || f.gnssSnr < 32);
+    let gnssL = gnssJamFlight ? 5.0 : 2.2;
+    let gnssI = gnssJamFlight ? 4.0 : 3.0;
+    if (this.defense.multiFreqGnss && gnssJamFlight) {
+      gnssL = 2.0;
+      gnssI = 2.0;
+    }
+    const gnssJamRisk = classify(gnssL, gnssI);
+    list.push({
+      id: "RT-NAV-GNSS-01",
+      domain: "Navigation",
+      asset: "GNSS",
+      threatType: "GPS L1 (1575.42 MHz) RF Jamming",
+      category: "Satellite Navigation",
+      ciaTriad: "Availability",
+      likelihood: gnssL,
+      impact: gnssI,
+      numericRisk: gnssJamRisk.r,
+      tolerability: gnssJamRisk.tol,
+      fivePointScale: gnssJamRisk.scale,
+      isRealtime: true,
+      liveTelemetry: gnssJamFlight ? (this.defense.multiFreqGnss ? "L1 Jammed · Resilient L5 Link Active (C/N0: 39 dB-Hz)" : `C/N0: ${gnssJamFlight.gnssSnr.toFixed(1)} dB-Hz (Depleted) · Satellites: 2`) : "C/N0: 46.2 dB-Hz (Nominal) · Satellites: 9",
+      prediction: {
+        predictedAttack: "Targeted Radio Frequency Interference (GPS PPD)",
+        probability: gnssJamFlight ? 96 : 9,
+        timeToImpact: gnssJamFlight ? (this.defense.multiFreqGnss ? "Neutralized by L5" : "FMS GPS Lock Loss in 8s") : "Nominal",
+        confidence: 95,
+        targetFlight: gnssJamFlight ? gnssJamFlight.callsign : "Sector-Wide"
+      },
+      mitigations: ["Multi-Frequency L5 GNSS + Galileo", "Inertial Reference System (IRS) dead reckoning", "Terrestrial VOR/DME backup"]
+    });
+
+    // 5. GNSS Ephemeris Spoofing
+    const gnssSpoofFlight = this.flights.find((f) => f.gnssSpoofed);
+    const gnssSpoofL = gnssSpoofFlight ? 4.2 : 1.4;
+    const gnssSpoofI = gnssSpoofFlight ? 5.0 : 4.0;
+    const gnssSpoofRisk = classify(gnssSpoofL, gnssSpoofI);
+    list.push({
+      id: "RT-NAV-GNSS-02",
+      domain: "Navigation",
+      asset: "GNSS",
+      threatType: "Synthetic GNSS Ephemeris Spoofing",
+      category: "Satellite Navigation",
+      ciaTriad: "Integrity",
+      likelihood: gnssSpoofL,
+      impact: gnssSpoofI,
+      numericRisk: gnssSpoofRisk.r,
+      tolerability: gnssSpoofRisk.tol,
+      fivePointScale: gnssSpoofRisk.scale,
+      isRealtime: true,
+      liveTelemetry: gnssSpoofFlight ? "Cross-Track Position Drift > 0.65 NM · Pseudorange Step > 140m" : "GPS vs IRS Cross-Fix Drift < 0.05 NM (Nominal)",
+      prediction: {
+        predictedAttack: "Coordinated Multi-Satellite Fake Signal Injection",
+        probability: gnssSpoofFlight ? 94 : 3,
+        timeToImpact: gnssSpoofFlight ? "Approach Centerline Deviation in 25s" : "Nominal",
+        confidence: 93,
+        targetFlight: gnssSpoofFlight ? gnssSpoofFlight.callsign : "Terminal Approach"
+      },
+      mitigations: ["RAIM / AAIM autonomous integrity monitoring", "DME-DME fix cross-check", "Galileo OS-NMA authenticated navigation"]
+    });
+
+    // 6. ILS Precision Approach Interference
+    const finalApproachFlight = this.flights.find((f) => f.flightPhase === "Final Approach");
+    const ilsL = 1.3;
+    const ilsI = 4.8;
+    const ilsRisk = classify(ilsL, ilsI);
+    list.push({
+      id: "RT-NAV-ILS-01",
+      domain: "Navigation",
+      asset: "ILS",
+      threatType: "ILS Localizer / Glide Slope Single-Tone Attack",
+      category: "Precision Landing Aid",
+      ciaTriad: "Integrity",
+      likelihood: ilsL,
+      impact: ilsI,
+      numericRisk: ilsRisk.r,
+      tolerability: ilsRisk.tol,
+      fivePointScale: ilsRisk.scale,
+      isRealtime: true,
+      liveTelemetry: finalApproachFlight ? `Tracking ${finalApproachFlight.callsign} on RWY 27R · Localizer DDM: 0.002 (Nominal)` : "Runway 27R/09L Near-Field Monitor Active",
+      prediction: {
+        predictedAttack: "Carrier Phase / Tone Displacement Attack",
+        probability: 6,
+        timeToImpact: "Nominal Landing Corridor",
+        confidence: 90,
+        targetFlight: finalApproachFlight ? finalApproachFlight.callsign : "Runway Threshold"
+      },
+      mitigations: ["Far-field runway threshold monitor", "Radar altimeter cross-check", "GBAS differential GPS backup"]
+    });
+
+    // 7. ADS-B Ghost Aircraft Injection
+    const hasGhost = this.ghostAircraft.length > 0;
+    let ghostL = hasGhost ? 4.8 : 2.0;
+    let ghostI = hasGhost ? 4.8 : 3.0;
+    if (this.defense.psrSsrFusion && hasGhost) {
+      ghostL = 1.5;
+      ghostI = 2.0;
+    }
+    const ghostRisk = classify(ghostL, ghostI);
+    list.push({
+      id: "RT-SUR-ADSB-01",
+      domain: "Surveillance",
+      asset: "ADS-B",
+      threatType: "ADS-B Ghost Aircraft Injection (1090ES)",
+      category: "Broadcast Surveillance",
+      ciaTriad: "Integrity",
+      likelihood: ghostL,
+      impact: ghostI,
+      numericRisk: ghostRisk.r,
+      tolerability: ghostRisk.tol,
+      fivePointScale: ghostRisk.scale,
+      isRealtime: true,
+      liveTelemetry: hasGhost ? (this.defense.psrSsrFusion ? "Ghost Squitter Detected & Filtered via Primary Radar Echo" : `Synthetic Mode S Squitter: ${this.ghostAircraft[0].callsign} · Primary Radar Echo: 0 dBsm (Non-Physical)`) : "All 1090 MHz squitters correlated with Primary Radar returns",
+      prediction: {
+        predictedAttack: "Unauthenticated 1090ES Message Injection",
+        probability: hasGhost ? 97 : 7,
+        timeToImpact: hasGhost ? (this.defense.psrSsrFusion ? "Neutralized by PSR" : "False TCAS Resolution Advisory in 10s") : "Nominal",
+        confidence: 97,
+        targetFlight: hasGhost ? this.ghostAircraft[0].targetFlight : "Airspace Grid"
+      },
+      mitigations: ["Primary Surveillance Radar (PSR) skin-paint data fusion", "TDoA multilateration verification", "ADS-B cryptographic broadcast authentication"]
+    });
+
+    // 8. ADS-B Trajectory Spoofing
+    const adsbSpoofTarget = this.flights.find((f) => f.adsbSpoofed);
+    let trajL = adsbSpoofTarget ? 4.5 : 2.0;
+    let trajI = adsbSpoofTarget ? 4.2 : 3.0;
+    if (this.defense.tdoaMlVerification && adsbSpoofTarget) {
+      trajL = 1.8;
+      trajI = 2.0;
+    }
+    const trajRisk = classify(trajL, trajI);
+    list.push({
+      id: "RT-SUR-ADSB-02",
+      domain: "Surveillance",
+      asset: "ADS-B",
+      threatType: "ADS-B Trajectory Spoofing / Position Alteration",
+      category: "Broadcast Surveillance",
+      ciaTriad: "Integrity",
+      likelihood: trajL,
+      impact: trajI,
+      numericRisk: trajRisk.r,
+      tolerability: trajRisk.tol,
+      fivePointScale: trajRisk.scale,
+      isRealtime: true,
+      liveTelemetry: adsbSpoofTarget ? (this.defense.tdoaMlVerification ? "TDoA ML Position Overriding Spoofed Coordinates" : `Claimed Pos diverged by ${Math.hypot(adsbSpoofTarget.claimedX - adsbSpoofTarget.trueX, adsbSpoofTarget.claimedY - adsbSpoofTarget.trueY).toFixed(1)} NM · TDoA Error: ${this.computeTdoaResidual(adsbSpoofTarget.claimedX, adsbSpoofTarget.claimedY, adsbSpoofTarget.trueX, adsbSpoofTarget.trueY)} μs`) : "TDoA Residual: 0.12 μs (Nominal)",
+      prediction: {
+        predictedAttack: "Airspace Trajectory Manipulation",
+        probability: adsbSpoofTarget ? 95 : 6,
+        timeToImpact: adsbSpoofTarget ? (this.defense.tdoaMlVerification ? "Corrected by ML TDoA" : "Loss of Radar Separation in 18s") : "Nominal",
+        confidence: 94,
+        targetFlight: adsbSpoofTarget ? adsbSpoofTarget.callsign : "En-Route / Approach"
+      },
+      mitigations: ["TDoA ML localization (OpenSky Network)", "Monopulse Angle-of-Arrival (AoA) antennas", "Doppler shift verification"]
+    });
+
+    // 9. SSR Transponder Over-Interrogation
+    const ssrTarget = this.flights.find((f) => f.transponderRate > 1200);
+    const ssrL = ssrTarget ? 4.2 : 1.2;
+    const ssrI = ssrTarget ? 4.5 : 3.5;
+    const ssrRisk = classify(ssrL, ssrI);
+    list.push({
+      id: "RT-SUR-SSR-01",
+      domain: "Surveillance",
+      asset: "SSR",
+      threatType: "SSR Transponder Pulse Saturation / Lockout",
+      category: "Cooperative Radar",
+      ciaTriad: "Availability",
+      likelihood: ssrL,
+      impact: ssrI,
+      numericRisk: ssrRisk.r,
+      tolerability: ssrRisk.tol,
+      fivePointScale: ssrRisk.scale,
+      isRealtime: true,
+      liveTelemetry: ssrTarget ? `Interrogation PRF: ${ssrTarget.transponderRate} Hz (>1200 Hz threshold) · Transponder duty cycle tripped!` : "Interrogation PRF: 390 Hz · Duty Cycle: 24% (Nominal)",
+      prediction: {
+        predictedAttack: "Ground Interrogator Flood / Duty-Cycle Exhaustion",
+        probability: ssrTarget ? 98 : 4,
+        timeToImpact: ssrTarget ? "Radar Track Dropout in 4s" : "Nominal",
+        confidence: 98,
+        targetFlight: ssrTarget ? ssrTarget.callsign : "Terminal Interrogation Area"
+      },
+      mitigations: ["Ground sensor PRF coordination", "Interrogator power budget scheduling", "PSR skin-paint fallback"]
+    });
+
+    // 10. SWIM Net-Centric MITM & DoS
+    const hasSwimAttack = this.activeAttacks.some((a) => a.type === "SWIM_MITM");
+    const swimL = hasSwimAttack ? 4.2 : 2.0;
+    const swimI = hasSwimAttack ? 4.0 : 3.0;
+    const swimRisk = classify(swimL, swimI);
+    list.push({
+      id: "RT-NET-SWIM-01",
+      domain: "Networking",
+      asset: "SWIM",
+      threatType: "SWIM Enterprise Service Bus MITM / DoS Attack",
+      category: "Net-Centric IP Infrastructure",
+      ciaTriad: "Integrity",
+      likelihood: swimL,
+      impact: swimI,
+      numericRisk: swimRisk.r,
+      tolerability: swimRisk.tol,
+      fivePointScale: swimRisk.scale,
+      isRealtime: true,
+      liveTelemetry: hasSwimAttack ? "SWIM Bus Latency: 520ms · Unsigned AIXM/FIXM updates detected" : "SWIM Enterprise Bus: Mutual TLS OK · Latency: 14ms",
+      prediction: {
+        predictedAttack: "Unauthorized Net-Centric Data Alteration",
+        probability: hasSwimAttack ? 93 : 8,
+        timeToImpact: hasSwimAttack ? "Corrupted Weather / Flight Plan Propagation" : "Nominal",
+        confidence: 92,
+        targetFlight: "Airspace Stakeholders (ANSP/Airlines/AOCC)"
+      },
+      mitigations: ["SWIM Common PKI mutual certificates", "ICAO INNOVA/ACORNS private network", "Zero Trust Network Architecture (ZTNA)"]
+    });
+
+    return list;
+  }
+
+  // =========================================================================
+  // AUTOMATED ADVERSARIAL CAMPAIGN LAUNCHER (RED TEAM)
+  // =========================================================================
+  triggerMultiStageCampaign() {
+    this.clearAllAttacks();
+    const flight = this.flights.find((f) => f.id === "UAL421") || this.flights[0];
+    this.selectedFlightId = flight.id;
+
+    // Stage 1: Inject GPS Jamming
+    this.injectAttack("GNSS_JAMMING");
+
+    // Stage 2: Infiltrate ADS-B with Ghost Decoy
+    setTimeout(() => {
+      this.injectAttack("ADSB_GHOST");
+    }, 400);
+
+    // Stage 3: Broadcast Rogue Voice Clearance
+    setTimeout(() => {
+      this.injectAttack("VHF_VOICE_SPOOF");
+      this.logEvent("RED_TEAM_CAMPAIGN", "Coordinated Adversarial Campaign Active: GPS Jamming + ADS-B Ghost Decoy + Rogue VHF Voice Clearances!", "CRITICAL");
+    }, 800);
+  }
+
+  // =========================================================================
+  // AUTOMATED CYBER-RESILIENCE RESPONSE (BLUE TEAM)
+  // =========================================================================
+  triggerFullAutonomousDefense() {
+    this.defense.psrSsrFusion = true;
+    this.defense.multiFreqGnss = true;
+    this.defense.tdoaMlVerification = true;
+    this.defense.autoFreqHop = true;
+
+    // Sync UI checkboxes
+    const c1 = document.getElementById("defense-psr-fusion");
+    const c2 = document.getElementById("defense-multi-gnss");
+    const c3 = document.getElementById("defense-tdoa-ml");
+    const c4 = document.getElementById("defense-auto-freq");
+    if (c1) c1.checked = true;
+    if (c2) c2.checked = true;
+    if (c3) c3.checked = true;
+    if (c4) c4.checked = true;
+
+    this.logEvent("BLUE_TEAM_DEFENSE", "Full Multi-Layer Cyber-Resilience Deployed: PSR-SSR Fusion + Multi-Freq GNSS + TDoA ML + Auto VHF Hopping Active!", "SUCCESS");
+  }
+
+  // =========================================================================
+  // CUSTOM TELEMETRY PACKET INGESTION & REAL-TIME PREDICTION
+  // =========================================================================
+  processCustomTelemetryPacket(packet) {
+    try {
+      const flight = this.flights.find((f) => f.id === packet.flightId || f.callsign === packet.callsign) || this.flights[0];
+      
+      if (typeof packet.gnssSnr === "number") {
+        flight.gnssSnr = packet.gnssSnr;
+        if (packet.gnssSnr < 30) flight.gnssJammed = true;
+      }
+
+      if (typeof packet.claimedX === "number" && typeof packet.trueX === "number") {
+        flight.claimedX = packet.claimedX;
+        flight.trueX = packet.trueX;
+        if (Math.hypot(packet.claimedX - packet.trueX, packet.claimedY - packet.trueY) > 1.0) {
+          flight.adsbSpoofed = true;
+        }
+      }
+
+      if (typeof packet.transponderRate === "number") {
+        flight.transponderRate = packet.transponderRate;
+        if (packet.transponderRate > 1200) flight.transponderSuppressed = true;
+      }
+
+      if (packet.vhfAnomaly) {
+        flight.vhfSpoofed = true;
+      }
+
+      if (packet.cpdlcTampered) {
+        flight.cpdlcTampered = true;
+      }
+
+      this.selectedFlightId = flight.id;
+      this.recalculateLiveRisk();
+      this.runAttackPredictionEngine();
+      this.refreshTelemetryUI();
+
+      this.logEvent("DATA_INGEST", `Processed custom live telemetry packet for ${flight.callsign}. Updated real-time predictive risk profile.`, "SUCCESS");
+      return { success: true, flight: flight.callsign, risk: flight.risk };
+    } catch (err) {
+      this.logEvent("DATA_ERROR", `Failed to parse telemetry packet: ${err.message}`, "CRITICAL");
+      return { success: false, error: err.message };
+    }
   }
 
   // =========================================================================
@@ -595,7 +1018,7 @@ class AirspaceSimulator {
     const newPredictions = [];
 
     this.flights.forEach((f) => {
-      // 1. TDoA Multi-Lateration Consistency Predictor (ADS-B Ghost / Spoofing)
+      // 1. TDoA Multi-Lateration Consistency Predictor
       const tdoaResidual = this.computeTdoaResidual(f.claimedX, f.claimedY, f.trueX, f.trueY);
       if (tdoaResidual > 1.2) {
         newPredictions.push({
@@ -626,7 +1049,7 @@ class AirspaceSimulator {
         });
       });
 
-      // 2. GNSS Carrier-to-Noise Degradation Predictor (Pre-Jamming Detection)
+      // 2. GNSS Carrier-to-Noise Degradation Predictor
       if (f.gnssSnr < 32) {
         newPredictions.push({
           flightId: f.id,
@@ -642,7 +1065,7 @@ class AirspaceSimulator {
         this.stats.predictionsGenerated++;
       }
 
-      // 3. GNSS Ephemeris & Position Drift Predictor (Spoofing vs IRS)
+      // 3. GNSS Ephemeris & Position Drift Predictor
       if (f.gnssSpoofed) {
         newPredictions.push({
           flightId: f.id,

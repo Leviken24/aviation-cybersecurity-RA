@@ -48,10 +48,9 @@
         </div>
         <div>
           <div class="flex items-center space-x-2">
-            <h1 class="text-base font-bold text-white tracking-wide">Civil Aviation Cybersecurity Risk Dashboard</h1>
-            <span class="px-2 py-0.5 text-[10px] uppercase font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800 rounded">ICAO Compliant</span>
+            <h1 class="text-base font-bold text-white tracking-wide">Civil Aviation Cybersecurity Risk & Attack Prediction System</h1>
+            <span class="px-2 py-0.5 text-[10px] uppercase font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800 rounded">Real-Time Operational</span>
           </div>
-          <p class="text-xs text-slate-400">Based on Algorithm 1 & Framework by A. A. Elmarady & K. Rahouma (IEEE Access 2021)</p>
         </div>
       </div>
 
@@ -107,6 +106,54 @@
 
   <!-- MAIN VIEWPORT CONTAINER -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- REAL-TIME TELEMETRY STREAM & DATA SOURCE CONTROLLER -->
+    <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 rounded-lg bg-sky-950 border border-sky-800/80 text-sky-400">
+          <i data-lucide="activity" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-mono uppercase text-slate-400 font-bold">Risk Assessment Pipeline:</span>
+            <div id="datasource-indicator" class="flex items-center text-xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block mr-1.5"></span>
+              <span class="text-emerald-400 font-mono font-bold">STREAMING RED/BLUE TELEMETRY</span>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-0.5">Algorithm 1 recalculating r = L × I across real-time aircraft kinematics and adversary attacks.</p>
+        </div>
+      </div>
+
+      <!-- Action & Mode Switchers -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center space-x-1">
+          <button id="datasource-live-btn" onclick="setDataSource('live')" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-600 text-white shadow-sm border border-sky-400 flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-300 animate-ping"></span>
+            <span>Live Predicted Stream</span>
+          </button>
+          <button id="datasource-baseline-btn" onclick="setDataSource('baseline')" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-slate-800 text-slate-400 hover:text-white border border-slate-700 flex items-center space-x-1.5">
+            <i data-lucide="database" class="w-3.5 h-3.5"></i>
+            <span>Research Baseline</span>
+          </button>
+        </div>
+
+        <button onclick="airspaceSim.triggerMultiStageCampaign()" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-700 flex items-center space-x-1.5 transition-colors shadow-sm">
+          <i data-lucide="zap" class="w-3.5 h-3.5 text-red-400"></i>
+          <span>Launch Red Campaign</span>
+        </button>
+
+        <button onclick="airspaceSim.triggerFullAutonomousDefense()" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-sky-950/80 hover:bg-sky-900 text-sky-300 border border-sky-700 flex items-center space-x-1.5 transition-colors shadow-sm">
+          <i data-lucide="shield" class="w-3.5 h-3.5 text-sky-400"></i>
+          <span>Deploy Blue Defenses</span>
+        </button>
+
+        <button onclick="openCustomTelemetryModal()" class="px-3 py-1.5 text-xs font-mono font-bold rounded bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-700 flex items-center space-x-1.5 transition-colors shadow-sm">
+          <i data-lucide="file-json" class="w-3.5 h-3.5 text-purple-400"></i>
+          <span>Ingest Telemetry Packet</span>
+        </button>
+      </div>
+    </div>
 
     <!-- KPI EXECUTIVE STATS CARDS -->
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -510,7 +557,7 @@
               <tr class="border-b border-slate-800 text-[11px] font-mono uppercase text-slate-400 bg-slate-950/60">
                 <th class="py-2.5 px-4">Threat ID</th>
                 <th class="py-2.5 px-4">Asset & Domain</th>
-                <th class="py-2.5 px-4">Attack Scenario</th>
+                <th class="py-2.5 px-4">Attack Scenario & Live Telemetry</th>
                 <th class="py-2.5 px-4 text-center">Likelihood (L)</th>
                 <th class="py-2.5 px-4 text-center">Impact (I)</th>
                 <th class="py-2.5 px-4 text-center">Risk Level (r)</th>
@@ -1353,9 +1400,65 @@ Optical watermarking and timestamp frames</textarea>
     </div>
   </div>
 
+  <!-- ======================================================== -->
+  <!-- MODAL: CUSTOM TELEMETRY & ATTACK PACKET INGESTION -->
+  <!-- ======================================================== -->
+  <div id="telemetry-ingest-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-4">
+      <button onclick="closeCustomTelemetryModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2.5 border-b border-slate-800 pb-3">
+        <div class="p-2 rounded bg-purple-950 text-purple-400 border border-purple-800">
+          <i data-lucide="cpu" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">Live Telemetry & Red/Blue Ingest</h3>
+          <p class="text-xs text-slate-400 font-mono">Inject synthetic sensor streams to predict attacks and assess live risk</p>
+        </div>
+      </div>
+
+      <!-- Quick Preset Buttons -->
+      <div>
+        <label class="block text-xs font-mono text-slate-400 uppercase mb-1.5">Load Test Presets:</label>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+          <button type="button" onclick="loadPresetTelemetry('gps_jam')" class="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-sky-500 rounded text-sky-400 text-center transition-colors">
+            GPS Jamming
+          </button>
+          <button type="button" onclick="loadPresetTelemetry('adsb_ghost')" class="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-red-500 rounded text-red-400 text-center transition-colors">
+            ADS-B Ghost
+          </button>
+          <button type="button" onclick="loadPresetTelemetry('vhf_spoof')" class="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-pink-500 rounded text-pink-400 text-center transition-colors">
+            Rogue VHF Voice
+          </button>
+          <button type="button" onclick="loadPresetTelemetry('nominal')" class="p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500 rounded text-emerald-400 text-center transition-colors">
+            Clean Nominal
+          </button>
+        </div>
+      </div>
+
+      <!-- JSON Input Area -->
+      <div>
+        <label class="block text-xs font-mono text-slate-400 uppercase mb-1.5">Telemetry Packet Payload (JSON):</label>
+        <textarea id="telemetry-json-payload" rows="8" class="w-full bg-slate-950 border border-slate-800 rounded p-3 text-xs font-mono text-emerald-400 focus:outline-none focus:border-sky-500"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-800">
+        <button type="button" onclick="closeCustomTelemetryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-mono rounded text-slate-300 transition-colors">
+          Cancel
+        </button>
+        <button type="button" onclick="submitCustomTelemetryPacket()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 font-bold text-xs font-mono rounded text-white shadow-lg shadow-sky-900/50 flex items-center space-x-1.5 transition-colors">
+          <i data-lucide="play" class="w-3.5 h-3.5"></i>
+          <span>Run Predictive AI Analysis</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FOOTER -->
-  <footer class="border-t border-slate-800/80 bg-slate-950 py-4 text-center text-xs font-mono text-slate-500">
-    Civil Aviation Cybersecurity Risk Assessment System · Compliant with ICAO Security Risk Assessment Methodology & IEEE Access 2021
+  <footer class="border-t border-slate-800/80 bg-slate-950 py-3 text-center text-xs font-mono text-slate-500">
+    Civil Aviation Cybersecurity Risk Assessment & Real-Time Attack Prediction System
   </footer>
 
   <!-- SCRIPT INCLUDES -->
